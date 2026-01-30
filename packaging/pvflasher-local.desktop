@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=PvFlasher
+Comment=Cross-platform USB Image Flasher
+Exec=$HOME/.local/bin/pvflasher
+Icon=pvflasher
+Terminal=false
+Type=Application
+Categories=System;Utility;
+Keywords=usb;flash;image;disk;bmap;
+StartupNotify=true

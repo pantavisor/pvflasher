@@ -1,0 +1,18 @@
+Package: pvflasher
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Sergio Marin <sergio.marin@pantacor.com>
+Description: Cross-platform USB Image pvflasher
+ pvflasher is a fast and reliable USB image pvflasher with support for
+ bmap optimization, verification, and multiple image formats.
+ .
+ Features:
+  - Bmap-optimized flashing for faster writes
+  - Support for compressed images (gz, bz2, xz, zstd)
+  - Verification after flash
+  - Safe device ejection
+  - GUI and CLI interfaces
+Depends: libc6, libgl1, libx11-6, libxcursor1, libxrandr2, libxinerama1, libxi6, libxxf86vm1
+Homepage: https://github.com/pantacor/pvflasher

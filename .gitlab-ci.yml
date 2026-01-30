@@ -1,0 +1,70 @@
+stages:
+    - test
+    - build
+    - publish
+
+variables:
+    GOPATH: $CI_PROJECT_DIR/.go
+    # Use the tag as version, or the commit short SHA if not a tag
+    VERSION: $CI_COMMIT_TAG
+    PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/pvflasher/${CI_COMMIT_TAG}"
+
+cache:
+    paths:
+        - .go/pkg/mod
+        - .cache/go-build
+
+test:
+    image: golang:1.24
+    stage: test
+    script:
+        - make test
+    rules:
+        - if: $CI_COMMIT_BRANCH
+        - if: $CI_COMMIT_TAG
+
+build:
+    stage: build
+    image: docker:27
+    before_script:
+        - apk add --no-cache make git go bash curl file imagemagick
+        - go install github.com/fyne-io/fyne-cross@latest
+        - export PATH=$PATH:$(go env GOPATH)/bin
+        # Download AppImage tools
+        - curl -L https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage -o /usr/local/bin/linuxdeploy
+        - curl -L https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -o /usr/local/bin/appimagetool
+        - chmod +x /usr/local/bin/linuxdeploy /usr/local/bin/appimagetool
+        - export APPIMAGE_EXTRACT_AND_RUN=1
+    script:
+        - |
+            if [ -n "$CI_COMMIT_TAG" ]; then
+              export VERSION=$CI_COMMIT_TAG
+            else
+              export VERSION="0.0.0-$CI_COMMIT_SHORT_SHA"
+            fi
+            echo "Building version: $VERSION"
+        - make release-ci VERSION=$VERSION
+    artifacts:
+        paths:
+            - release/
+        expire_in: 1 week
+    rules:
+        - if: $CI_COMMIT_TAG
+        - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+publish:
+    stage: publish
+    image: curlimages/curl:latest
+    rules:
+        - if: $CI_COMMIT_TAG
+    script:
+        - |
+            echo "Publishing artifacts to GitLab Package Registry for version $CI_COMMIT_TAG..."
+            find release -type f | while read file; do
+              # Create a unique filename by replacing slashes with dashes
+              filename=$(echo "$file" | sed 's|^release/||' | tr '/' '-')
+              echo "Uploading $file as $filename..."
+              curl --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+                   --upload-file "$file" \
+                   "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/pvflasher/${CI_COMMIT_TAG}/${filename}"
+            done

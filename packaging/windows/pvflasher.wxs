@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product
+		Id="*"
+		Name="pvflasher"
+		Language="1033"
+		Version="1.0.0"
+		Manufacturer="Sergio Marin"
+		UpgradeCode="12345678-1234-1234-1234-123456789012"
+	>
+
+    <Package
+			InstallerVersion="200"
+			Compressed="yes"
+			InstallScope="perMachine"
+			Description="Cross-platform USB Image pvflasher"
+			Comments="pvflasher - USB Image Writer with Bmap support"
+		/>
+
+    <MajorUpgrade
+			DowngradeErrorMessage="A newer version of [ProductName] is already installed."
+		/>
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="ProductFeature" Title="pvflasher" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+      <ComponentRef Id="ApplicationShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
+    </Feature>
+
+    <!-- UI -->
+    <UIRef Id="WixUI_InstallDir" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <!-- Icons -->
+    <Icon Id="icon.ico" SourceFile="icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="icon.ico" />
+
+    <Property
+			Id="ARPURLINFOABOUT"
+			Value="https://github.com/pantacor/pvflasher"
+		/>
+
+  </Product>
+
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="pvflasher" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="pvflasher" />
+      </Directory>
+      <Directory Id="DesktopFolder" Name="Desktop" />
+    </Directory>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Component Id="FlasherExecutable" Guid="*">
+        <File
+					Id="FlasherEXE"
+					Name="pvflasher.exe"
+					Source="$(var.SourceDir)\pvflasher.exe"
+					KeyPath="yes"
+				/>
+      </Component>
+    </ComponentGroup>
+
+    <Component
+			Id="ApplicationShortcut"
+			Guid="*"
+			Directory="ApplicationProgramsFolder"
+		>
+      <Shortcut
+				Id="ApplicationStartMenuShortcut"
+				Name="pvflasher"
+				Description="Cross-platform USB Image pvflasher"
+				Target="[INSTALLFOLDER]pvpvflasher.exe"
+				WorkingDirectory="INSTALLFOLDER"
+				Icon="icon.ico"
+			/>
+      <RemoveFolder
+				Id="CleanUpShortCut"
+				Directory="ApplicationProgramsFolder"
+				On="uninstall"
+			/>
+      <RegistryValue
+				Root="HKCU"
+				Key="Software\pvflasher"
+				Name="installed"
+				Type="integer"
+				Value="1"
+				KeyPath="yes"
+			/>
+    </Component>
+
+    <Component Id="DesktopShortcut" Guid="*" Directory="DesktopFolder">
+      <Shortcut
+				Id="DesktopShortcut"
+				Name="pvflasher"
+				Description="Cross-platform USB Image pvflasher"
+				Target="[INSTALLFOLDER]pvpvflasher.exe"
+				WorkingDirectory="INSTALLFOLDER"
+				Icon="icon.ico"
+			/>
+      <RegistryValue
+				Root="HKCU"
+				Key="Software\pvflasher"
+				Name="DesktopShortcut"
+				Type="integer"
+				Value="1"
+				KeyPath="yes"
+			/>
+    </Component>
+  </Fragment>
+</Wix>

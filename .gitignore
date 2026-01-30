@@ -1,0 +1,60 @@
+# Build artifacts
+bin/
+build/
+dist/
+fyne-cross/
+
+# Release artifacts (packages)
+release/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+vendor/
+
+# Frontend
+node_modules/
+gui/frontend/dist/
+gui/frontend/node_modules/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Wails
+gui/frontend/wailsjs/
+
+# Packaging intermediates
+packaging/**/*.deb
+packaging/**/*.rpm
+packaging/**/*.AppImage
+packaging/**/*.dmg
+packaging/**/*.exe
+packaging/**/*.msi
+packaging/**/pvflasher-*-amd64/
+packaging/**/pvflasher.AppDir/
+packaging/**/*.wixobj
+packaging/**/*.wixpdb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+
+# OS
+Thumbs.db
+.Trashes
