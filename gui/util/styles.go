@@ -421,14 +421,15 @@ func StyledCardWithBorderAndPadding(content fyne.CanvasObject, padding float32) 
 }
 
 // ColoredLabel is a custom widget that displays text with explicit color control
-// It supports dynamic text updates via SetText()
+// It supports dynamic text updates via SetText() and text wrapping
 type ColoredLabel struct {
 	widget.BaseWidget
-	Text  string // Exported Text field for compatibility
-	color color.Color
-	bold  bool
-	size  float32
-	bg    *canvas.Text
+	Text     string // Exported Text field for compatibility
+	color    color.Color
+	bold     bool
+	size     float32
+	maxWidth float32
+	label    *widget.Label
 }
 
 // NewColoredLabel creates a new colored label with dynamic update support
@@ -438,10 +439,11 @@ func NewColoredLabel(text string, textColor color.Color) *ColoredLabel {
 		textColor = CurrentTextColor()
 	}
 	cl := &ColoredLabel{
-		Text:  text,
-		color: textColor,
-		size:  12,
-		bold:  false,
+		Text:     text,
+		color:    textColor,
+		size:     12,
+		bold:     false,
+		maxWidth: 240,
 	}
 	cl.ExtendBaseWidget(cl)
 	return cl
@@ -454,10 +456,11 @@ func NewColoredLabelBold(text string, textColor color.Color) *ColoredLabel {
 		textColor = CurrentTextColor()
 	}
 	cl := &ColoredLabel{
-		Text:  text,
-		color: textColor,
-		size:  12,
-		bold:  true,
+		Text:     text,
+		color:    textColor,
+		size:     12,
+		bold:     true,
+		maxWidth: 240,
 	}
 	cl.ExtendBaseWidget(cl)
 	return cl
@@ -476,47 +479,48 @@ func NewThemedLabelBold(text string) *ColoredLabel {
 // SetText updates the label text
 func (cl *ColoredLabel) SetText(text string) {
 	cl.Text = text
-	if cl.bg != nil {
-		cl.bg.Text = text
-		cl.bg.Refresh()
+	if cl.label != nil {
+		cl.label.SetText(text)
 	}
 	cl.Refresh()
 }
 
-// SetColor updates the label color
+// SetColor updates the label color (note: widget.Label uses theme colors, this is kept for API compatibility)
 func (cl *ColoredLabel) SetColor(c color.Color) {
 	cl.color = c
-	if cl.bg != nil {
-		cl.bg.Color = c
-		cl.bg.Refresh()
-	}
 	cl.Refresh()
 }
 
 // CreateRenderer creates the renderer for this widget
 func (cl *ColoredLabel) CreateRenderer() fyne.WidgetRenderer {
-	txt := canvas.NewText(cl.Text, cl.color)
-	txt.TextSize = cl.size
-	txt.TextStyle = fyne.TextStyle{Bold: cl.bold}
-	cl.bg = txt
+	lbl := widget.NewLabel(cl.Text)
+	lbl.Wrapping = fyne.TextWrapWord
+	if cl.bold {
+		lbl.TextStyle = fyne.TextStyle{Bold: true}
+	}
+	cl.label = lbl
 
-	return &coloredLabelRenderer{label: cl, text: txt}
+	return &coloredLabelRenderer{label: cl, wrappedLabel: lbl}
 }
 
 // coloredLabelRenderer is a custom renderer for ColoredLabel
 type coloredLabelRenderer struct {
-	label *ColoredLabel
-	text  *canvas.Text
+	label        *ColoredLabel
+	wrappedLabel *widget.Label
 }
 
 func (r *coloredLabelRenderer) Destroy() {}
 
 func (r *coloredLabelRenderer) Layout(size fyne.Size) {
-	r.text.Resize(size)
+	r.wrappedLabel.Resize(size)
 }
 
 func (r *coloredLabelRenderer) MinSize() fyne.Size {
-	min := r.text.MinSize()
+	min := r.wrappedLabel.MinSize()
+	// Cap width to allow wrapping within card constraints
+	if min.Width > r.label.maxWidth {
+		min.Width = r.label.maxWidth
+	}
 	// Ensure minimum height
 	if min.Height < r.label.size+4 {
 		min.Height = r.label.size + 4
@@ -525,21 +529,26 @@ func (r *coloredLabelRenderer) MinSize() fyne.Size {
 }
 
 func (r *coloredLabelRenderer) Objects() []fyne.CanvasObject {
-	return []fyne.CanvasObject{r.text}
+	return []fyne.CanvasObject{r.wrappedLabel}
 }
 
 func (r *coloredLabelRenderer) Refresh() {
-	r.text.Text = r.label.Text
-	r.text.Color = r.label.color
-	r.text.TextSize = r.label.size
-	r.text.TextStyle = fyne.TextStyle{Bold: r.label.bold}
-	r.text.Refresh()
+	r.wrappedLabel.SetText(r.label.Text)
+	if r.label.bold {
+		r.wrappedLabel.TextStyle = fyne.TextStyle{Bold: true}
+	}
+	r.wrappedLabel.Wrapping = fyne.TextWrapWord
+	r.wrappedLabel.Refresh()
 }
 
 // MinSize returns the minimum size for the widget
 func (cl *ColoredLabel) MinSize() fyne.Size {
-	if cl.bg != nil {
-		min := cl.bg.MinSize()
+	if cl.label != nil {
+		min := cl.label.MinSize()
+		// Cap width to allow wrapping within card constraints
+		if min.Width > cl.maxWidth {
+			min.Width = cl.maxWidth
+		}
 		if min.Height < cl.size+4 {
 			min.Height = cl.size + 4
 		}
