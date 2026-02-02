@@ -40,7 +40,7 @@ build:
 	go build -tags flatpak -o bin/$(BINARY_NAME) -ldflags "$(LDFLAGS)"
 
 
-release: release-linux-amd64 release-linux-arm64 release-windows-amd64 release-windows-arm64
+release: release-linux-amd64 release-linux-arm64 release-windows-amd64 release-windows-arm64 release-darwin-amd64 release-darwin-arm64
 
 # CI target: builds only the core packages using fyne-cross, plus AppImage on host
 release-ci: package-linux-amd64 package-linux-arm64 package-windows-amd64 package-windows-arm64 package-appimage-host-amd64 package-appimage-host-arm64
@@ -59,6 +59,25 @@ release-ci: package-linux-amd64 package-linux-arm64 package-windows-amd64 packag
 		cp fyne-cross/dist/windows-arm64/$(BINARY_NAME).zip release/windows/$(BINARY_NAME)-windows-arm64.zip; \
 	fi
 	@echo "CI Artifacts available in release/"
+
+# macOS CI target: builds macOS packages natively on macOS runner
+release-ci-darwin: package-darwin-native-amd64 package-darwin-native-arm64
+	@echo "macOS CI Artifacts available in release/darwin/"
+
+# Native macOS packaging (no Docker required, for use on macOS hosts)
+package-darwin-native-%:
+	@echo "Building native macOS app for $*..."
+	@mkdir -p release/darwin
+	GOARCH=$* CGO_ENABLED=1 \
+	fyne package -os darwin \
+		-name $(BINARY_NAME) \
+		-icon Icon.png \
+		-appID com.pantacor.pvflasher
+	@mkdir -p release/darwin/$(BINARY_NAME)-darwin-$*
+	@mv $(BINARY_NAME).app release/darwin/$(BINARY_NAME)-darwin-$*/
+	@cd release/darwin && zip -r $(BINARY_NAME)-darwin-$*.zip $(BINARY_NAME)-darwin-$*
+	@rm -rf release/darwin/$(BINARY_NAME)-darwin-$*
+	@echo "Created release/darwin/$(BINARY_NAME)-darwin-$*.zip"
 
 # Host-based AppImage packaging (requires linuxdeploy and appimagetool on host)
 package-appimage-host-%: package-linux-%
@@ -99,6 +118,13 @@ release-windows-%: package-windows-%
 	@mkdir -p release/windows
 	@if [ -f fyne-cross/dist/windows-$*/$(BINARY_NAME).zip ]; then \
 		cp fyne-cross/dist/windows-$*/$(BINARY_NAME).zip release/windows/$(BINARY_NAME)-windows-$*.zip; \
+	fi
+
+release-darwin-%: package-darwin-%
+	@echo "Gathering release artifacts for macOS $*..."
+	@mkdir -p release/darwin
+	@if [ -f fyne-cross/dist/darwin-$*/$(BINARY_NAME).zip ]; then \
+		cp fyne-cross/dist/darwin-$*/$(BINARY_NAME).zip release/darwin/$(BINARY_NAME)-darwin-$*.zip; \
 	fi
 
 # Generic build rule for other targets (requires sysroot if cross-compiling)
@@ -200,6 +226,8 @@ help:
 	@echo "  make package-rpm        - Create RPM package"
 	@echo "  make package-linux-amd64  - Create Fyne cross-platform app for Linux x64"
 	@echo "  make package-windows-amd64 - Create Fyne app for Windows"
+	@echo "  make package-darwin-amd64 - Create Fyne app for macOS Intel"
+	@echo "  make package-darwin-arm64 - Create Fyne app for macOS Apple Silicon"
 	@echo "  make run                - Development mode (direct run)"
 	@echo "  make test               - Run tests"
 	@echo "  make clean              - Remove build artifacts"
