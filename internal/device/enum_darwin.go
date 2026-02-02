@@ -22,13 +22,15 @@ type diskUtilList struct {
 }
 
 type diskUtilInfo struct {
-	DeviceIdentifier string `plist:"DeviceIdentifier"`
-	Size             int64  `plist:"Size"`
-	Removable        bool   `plist:"Removable"`
-	Model            string `plist:"Model"`
-	Vendor           string `plist:"Vendor"`
-	MountPoint       string `plist:"MountPoint"`
-	Partitions       []struct {
+	DeviceIdentifier  string `plist:"DeviceIdentifier"`
+	Size              int64  `plist:"Size"`
+	Removable         bool   `plist:"Removable"`
+	Internal          bool   `plist:"Internal"`
+	VirtualOrPhysical string `plist:"VirtualOrPhysical"`
+	Model             string `plist:"Model"`
+	Vendor            string `plist:"Vendor"`
+	MountPoint        string `plist:"MountPoint"`
+	Partitions        []struct {
 		DeviceIdentifier string `plist:"DeviceIdentifier"`
 		MountPoint       string `plist:"MountPoint"`
 	} `plist:"Partitions"`
@@ -59,6 +61,16 @@ func (m *DarwinManager) List() ([]Device, error) {
 			continue
 		}
 
+		// Filter for safe-to-write devices:
+		// - Must be a physical device (not a disk image or synthesized container)
+		// - Must be external or removable (not internal system drive)
+		if info.VirtualOrPhysical != "Physical" {
+			continue
+		}
+		if info.Internal && !info.Removable {
+			continue
+		}
+
 		d := Device{
 			Name:      "/dev/" + info.DeviceIdentifier,
 			Size:      info.Size,
@@ -84,7 +96,22 @@ func (m *DarwinManager) List() ([]Device, error) {
 
 func isWholeDisk(devID string) bool {
 	// diskX is a whole disk, diskXsY is a partition
-	return !strings.Contains(devID, "s")
+	// Check if it matches "disk" followed by digits only (no "s" partition suffix)
+	if !strings.HasPrefix(devID, "disk") {
+		return false
+	}
+	// After "disk", there should only be digits for a whole disk
+	// Partitions have format diskXsY where X is the disk number and Y is the partition
+	suffix := strings.TrimPrefix(devID, "disk")
+	for _, c := range suffix {
+		if c == 's' {
+			return false // Has partition suffix
+		}
+		if c < '0' || c > '9' {
+			return false // Invalid character
+		}
+	}
+	return len(suffix) > 0
 }
 
 func getDiskInfo(devID string) (*diskUtilInfo, error) {
