@@ -47,16 +47,26 @@ build:
 
 release: release-linux-amd64 release-linux-arm64 release-windows-amd64 release-windows-arm64 release-darwin-amd64 release-darwin-arm64
 
-# CI target: builds only the core packages using fyne-cross, plus AppImage on host
-release-ci: package-linux-amd64 package-linux-arm64 package-windows-amd64 package-windows-arm64 package-appimage-host-amd64 package-appimage-host-arm64
-	@echo "Gathering CI release artifacts..."
-	@mkdir -p release/linux release/windows
+# CI target: builds all packages (kept for backward compatibility)
+release-ci: release-ci-linux release-ci-windows
+	@echo "All CI Artifacts available in release/"
+
+# CI target for Linux only: builds Linux packages using fyne-cross, plus AppImage on host
+release-ci-linux: package-linux-amd64 package-linux-arm64 package-appimage-host-amd64 package-appimage-host-arm64
+	@echo "Gathering CI release artifacts for Linux..."
+	@mkdir -p release/linux
 	@if [ -f fyne-cross/dist/linux-amd64/$(BINARY_NAME).tar.xz ]; then \
 		cp fyne-cross/dist/linux-amd64/$(BINARY_NAME).tar.xz release/linux/$(BINARY_NAME)-linux-x86_64.tar.xz; \
 	fi
 	@if [ -f fyne-cross/dist/linux-arm64/$(BINARY_NAME).tar.xz ]; then \
 		cp fyne-cross/dist/linux-arm64/$(BINARY_NAME).tar.xz release/linux/$(BINARY_NAME)-linux-aarch64.tar.xz; \
 	fi
+	@echo "Linux CI Artifacts available in release/linux/"
+
+# CI target for Windows only: builds Windows packages using fyne-cross
+release-ci-windows: package-windows-amd64 package-windows-arm64
+	@echo "Gathering CI release artifacts for Windows..."
+	@mkdir -p release/windows
 	@if [ -f fyne-cross/dist/windows-amd64/$(BINARY_NAME).zip ]; then \
 		cp fyne-cross/dist/windows-amd64/$(BINARY_NAME).zip release/windows/$(BINARY_NAME)-windows-x86_64.zip; \
 	else \
@@ -69,7 +79,7 @@ release-ci: package-linux-amd64 package-linux-arm64 package-windows-amd64 packag
 		echo "Creating zip artifact for Windows aarch64..."; \
 		cd release/windows-arm64 && zip -q -r ../../release/windows/$(BINARY_NAME)-windows-aarch64.zip $(BINARY_NAME).exe; \
 	fi
-	@echo "CI Artifacts available in release/"
+	@echo "Windows CI Artifacts available in release/windows/"
 
 # macOS CI target: builds macOS packages natively on macOS runner
 release-ci-darwin: package-darwin-native-amd64 package-darwin-native-arm64
