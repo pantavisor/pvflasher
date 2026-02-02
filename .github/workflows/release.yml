@@ -80,15 +80,32 @@ jobs:
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
-          APPIMAGE=$(find release/linux -name "*.AppImage" -print -quit)
+          # Detect runner architecture and test matching AppImage only
+          ARCH=$(uname -m)
+          echo "Runner architecture: $ARCH"
+
+          # Map architecture to AppImage naming convention
+          if [ "$ARCH" = "x86_64" ]; then
+            APPIMAGE_PATTERN="*x86_64*.AppImage"
+          elif [ "$ARCH" = "aarch64" ]; then
+            APPIMAGE_PATTERN="*aarch64*.AppImage"
+          else
+            echo "Unknown architecture: $ARCH, skipping smoke test"
+            exit 0
+          fi
+
+          APPIMAGE=$(find release/linux -name "$APPIMAGE_PATTERN" -print -quit)
           if [ -n "$APPIMAGE" ]; then
             chmod +x "$APPIMAGE"
+            echo "Testing AppImage: $APPIMAGE"
             # Test CLI mode (no display needed)
             "$APPIMAGE" --help
             # Test GUI initialization with virtual framebuffer
             timeout 5 xvfb-run -a "$APPIMAGE" &
             sleep 2
-            echo "AppImage smoke test passed"
+            echo "AppImage smoke test passed for $ARCH"
+          else
+            echo "Warning: No AppImage found matching $APPIMAGE_PATTERN"
           fi
 
       - name: List release artifacts
