@@ -30,6 +30,11 @@ ZIG_TARGET_linux-arm = arm-linux-gnueabihf
 ZIG_TARGET_windows-amd64 = x86_64-windows-gnu
 ZIG_TARGET_windows-arm64 = aarch64-windows-gnu
 
+# Architecture mapping for releases
+REL_ARCH_amd64 = x86_64
+REL_ARCH_arm64 = aarch64
+GET_REL_ARCH = $(if $(REL_ARCH_$1),$(REL_ARCH_$1),$1)
+
 .PHONY: all build clean test run package-appimage package-deb package-rpm install-local help debian-deps
 
 all: build
@@ -47,16 +52,22 @@ release-ci: package-linux-amd64 package-linux-arm64 package-windows-amd64 packag
 	@echo "Gathering CI release artifacts..."
 	@mkdir -p release/linux release/windows
 	@if [ -f fyne-cross/dist/linux-amd64/$(BINARY_NAME).tar.xz ]; then \
-		cp fyne-cross/dist/linux-amd64/$(BINARY_NAME).tar.xz release/linux/$(BINARY_NAME)-linux-amd64.tar.xz; \
+		cp fyne-cross/dist/linux-amd64/$(BINARY_NAME).tar.xz release/linux/$(BINARY_NAME)-linux-x86_64.tar.xz; \
 	fi
 	@if [ -f fyne-cross/dist/linux-arm64/$(BINARY_NAME).tar.xz ]; then \
-		cp fyne-cross/dist/linux-arm64/$(BINARY_NAME).tar.xz release/linux/$(BINARY_NAME)-linux-arm64.tar.xz; \
+		cp fyne-cross/dist/linux-arm64/$(BINARY_NAME).tar.xz release/linux/$(BINARY_NAME)-linux-aarch64.tar.xz; \
 	fi
 	@if [ -f fyne-cross/dist/windows-amd64/$(BINARY_NAME).zip ]; then \
-		cp fyne-cross/dist/windows-amd64/$(BINARY_NAME).zip release/windows/$(BINARY_NAME)-windows-amd64.zip; \
+		cp fyne-cross/dist/windows-amd64/$(BINARY_NAME).zip release/windows/$(BINARY_NAME)-windows-x86_64.zip; \
+	else \
+		echo "Creating zip artifact for Windows x86_64..."; \
+		cd release/windows-amd64 && zip -q -r ../../release/windows/$(BINARY_NAME)-windows-x86_64.zip $(BINARY_NAME).exe; \
 	fi
 	@if [ -f fyne-cross/dist/windows-arm64/$(BINARY_NAME).zip ]; then \
-		cp fyne-cross/dist/windows-arm64/$(BINARY_NAME).zip release/windows/$(BINARY_NAME)-windows-arm64.zip; \
+		cp fyne-cross/dist/windows-arm64/$(BINARY_NAME).zip release/windows/$(BINARY_NAME)-windows-aarch64.zip; \
+	else \
+		echo "Creating zip artifact for Windows aarch64..."; \
+		cd release/windows-arm64 && zip -q -r ../../release/windows/$(BINARY_NAME)-windows-aarch64.zip $(BINARY_NAME).exe; \
 	fi
 	@echo "CI Artifacts available in release/"
 
@@ -93,7 +104,7 @@ release-linux-amd64: package-linux-amd64 package-appimage-amd64 package-deb-amd6
 	@echo "Gathering release artifacts for Linux AMD64..."
 	@mkdir -p release/linux
 	@if [ -f fyne-cross/dist/linux-amd64/$(BINARY_NAME).tar.xz ]; then \
-		cp fyne-cross/dist/linux-amd64/$(BINARY_NAME).tar.xz release/linux/$(BINARY_NAME)-linux-amd64.tar.xz; \
+		cp fyne-cross/dist/linux-amd64/$(BINARY_NAME).tar.xz release/linux/$(BINARY_NAME)-linux-x86_64.tar.xz; \
 	fi
 	@echo "Artifacts available in release/linux/"
 
@@ -102,7 +113,7 @@ release-linux-arm64: package-linux-arm64 package-appimage-arm64 package-deb-arm6
 	@echo "Gathering release artifacts for Linux ARM64..."
 	@mkdir -p release/linux
 	@if [ -f fyne-cross/dist/linux-arm64/$(BINARY_NAME).tar.xz ]; then \
-		cp fyne-cross/dist/linux-arm64/$(BINARY_NAME).tar.xz release/linux/$(BINARY_NAME)-linux-arm64.tar.xz; \
+		cp fyne-cross/dist/linux-arm64/$(BINARY_NAME).tar.xz release/linux/$(BINARY_NAME)-linux-aarch64.tar.xz; \
 	fi
 	@echo "Artifacts available in release/linux/"
 
@@ -110,14 +121,17 @@ release-linux-%: package-linux-%
 	@echo "Gathering release artifacts for Linux $*..."
 	@mkdir -p release/linux
 	@if [ -f fyne-cross/dist/linux-$*/$(BINARY_NAME).tar.xz ]; then \
-		cp fyne-cross/dist/linux-$*/$(BINARY_NAME).tar.xz release/linux/$(BINARY_NAME)-linux-$*.tar.xz; \
+		cp fyne-cross/dist/linux-$*/$(BINARY_NAME).tar.xz release/linux/$(BINARY_NAME)-linux-$(call GET_REL_ARCH,$*).tar.xz; \
 	fi
 
 release-windows-%: package-windows-%
 	@echo "Gathering release artifacts for Windows $*..."
 	@mkdir -p release/windows
 	@if [ -f fyne-cross/dist/windows-$*/$(BINARY_NAME).zip ]; then \
-		cp fyne-cross/dist/windows-$*/$(BINARY_NAME).zip release/windows/$(BINARY_NAME)-windows-$*.zip; \
+		cp fyne-cross/dist/windows-$*/$(BINARY_NAME).zip release/windows/$(BINARY_NAME)-windows-$(call GET_REL_ARCH,$*).zip; \
+	else \
+		echo "Creating zip artifact for Windows $(call GET_REL_ARCH,$*)..."; \
+		cd release/windows-$* && zip -q -r ../../release/windows/$(BINARY_NAME)-windows-$(call GET_REL_ARCH,$*).zip $(BINARY_NAME).exe; \
 	fi
 
 release-darwin-%: package-darwin-%
