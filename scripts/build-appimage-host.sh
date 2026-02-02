@@ -17,17 +17,23 @@ case "$GOARCH" in
 	;;
 esac
 
-# Ensure tools are available
-if ! command -v linuxdeploy &>/dev/null; then
-	echo "Error: linuxdeploy not found in PATH"
-	exit 1
-fi
-
 PKG_NAME="PvFlasher"
 APP_DIR="${PKG_NAME}.AppDir"
 
 # Navigate to project root
 cd "$(dirname "$0")/.."
+
+# Ensure linuxdeploy is available (download if not found)
+LINUXDEPLOY_BIN="linuxdeploy"
+if ! command -v linuxdeploy &>/dev/null; then
+	echo "linuxdeploy not found in PATH, downloading..."
+	LINUXDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+	LINUXDEPLOY_BIN="$(pwd)/linuxdeploy-x86_64.AppImage"
+	if [ ! -f "$LINUXDEPLOY_BIN" ]; then
+		curl -L -o "$LINUXDEPLOY_BIN" "$LINUXDEPLOY_URL"
+		chmod +x "$LINUXDEPLOY_BIN"
+	fi
+fi
 
 echo "Building AppImage on host: ${PKG_NAME}-${VERSION}-${APPIMAGE_ARCH}.AppImage"
 
@@ -90,7 +96,7 @@ export APPIMAGE_EXTRACT_AND_RUN=1
 
 # Run linuxdeploy from the packaging/appimage directory
 cd packaging/appimage
-ARCH=$APPIMAGE_ARCH linuxdeploy --appdir="$APP_DIR" \
+ARCH=$APPIMAGE_ARCH $LINUXDEPLOY_BIN --appdir="$APP_DIR" \
 	--executable="$APP_DIR/usr/bin/pvflasher" \
 	--desktop-file="$APP_DIR/usr/share/applications/pvflasher.desktop" \
 	--icon-file="$APP_DIR/usr/share/icons/hicolor/512x512/apps/pvflasher.png" \
