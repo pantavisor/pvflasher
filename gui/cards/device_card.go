@@ -9,7 +9,6 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -52,24 +51,6 @@ func (c *DeviceCard) Build() fyne.CanvasObject {
 
 			if c.callbacks.OnDeviceSelected != nil {
 				c.callbacks.OnDeviceSelected(devicePath)
-			}
-
-			// Warn if system drive is selected
-			if strings.Contains(s, "SYSTEM DRIVE") {
-				dialog.ShowConfirm(
-					"⚠️ System Drive Warning",
-					"You have selected a SYSTEM DRIVE. This device likely contains your operating system.\n\nFlashing this device will DESTROY all data including your operating system.\n\nAre you absolutely sure you want to continue?",
-					func(confirmed bool) {
-						if !confirmed {
-							c.DeviceListSelect.ClearSelected()
-							c.SelectedDeviceLabel.SetText("No device selected")
-							if c.callbacks.OnDeviceCleared != nil {
-								c.callbacks.OnDeviceCleared()
-							}
-						}
-					},
-					c.window,
-				)
 			}
 		}
 	})
@@ -126,12 +107,13 @@ func (c *DeviceCard) RefreshDeviceList() {
 
 	options := []string{}
 	for _, d := range devices {
-		warning := ""
-
-		// Check for system drive (critical mount points)
+		// Skip system drives entirely - they should never be flashing targets
 		if c.isSystemDrive(d.MountPoints) {
-			warning = " 🚨 SYSTEM DRIVE"
-		} else if len(d.MountPoints) > 0 {
+			continue
+		}
+
+		warning := ""
+		if len(d.MountPoints) > 0 {
 			warning = " ⚠️ MOUNTED"
 		}
 
