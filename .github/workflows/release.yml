@@ -141,13 +141,22 @@ jobs:
 
       - name: Smoke test macOS binary
         run: |
-          # Extract and test the arm64 zip (macOS runners are Apple Silicon)
-          if [ -f release/darwin/pvflasher-darwin-arm64.zip ]; then
-            unzip -q release/darwin/pvflasher-darwin-arm64.zip -d /tmp/smoke-test
-            /tmp/smoke-test/pvflasher-darwin-arm64/pvflasher.app/Contents/MacOS/pvflasher --help
-            rm -rf /tmp/smoke-test
+          # Detect runner architecture and test matching binary
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "arm64" ]; then
+            BINARY_ARCH="arm64"
+          else
+            BINARY_ARCH="amd64"
           fi
-          echo "macOS smoke test completed"
+          echo "Runner architecture: $ARCH, testing $BINARY_ARCH binary"
+          if [ -f "release/darwin/pvflasher-darwin-${BINARY_ARCH}.zip" ]; then
+            unzip -q "release/darwin/pvflasher-darwin-${BINARY_ARCH}.zip" -d /tmp/smoke-test
+            /tmp/smoke-test/pvflasher-darwin-${BINARY_ARCH}/pvflasher.app/Contents/MacOS/pvflasher --help
+            rm -rf /tmp/smoke-test
+            echo "macOS smoke test passed for $BINARY_ARCH"
+          else
+            echo "Warning: No matching binary for $BINARY_ARCH"
+          fi
 
       - name: List release artifacts
         run: find release -type f -ls
