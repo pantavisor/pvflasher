@@ -3,6 +3,7 @@ bin/
 build/
 dist/
 fyne-cross/
+linuxdeploy-*.AppImage
 
 # Release artifacts (packages)
 release/
