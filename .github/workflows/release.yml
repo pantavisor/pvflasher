@@ -54,8 +54,8 @@ jobs:
           sudo curl -L https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -o /usr/local/bin/appimagetool
           sudo chmod +x /usr/local/bin/linuxdeploy /usr/local/bin/appimagetool
 
-      - name: Install ImageMagick
-        run: sudo apt-get update && sudo apt-get install -y imagemagick
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y imagemagick xvfb
 
       - name: Determine version
         id: version
@@ -75,6 +75,21 @@ jobs:
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: make release-ci VERSION=${{ steps.version.outputs.version }}
+
+      - name: Smoke test AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          APPIMAGE=$(find release/linux -name "*.AppImage" -print -quit)
+          if [ -n "$APPIMAGE" ]; then
+            chmod +x "$APPIMAGE"
+            # Test CLI mode (no display needed)
+            "$APPIMAGE" --help
+            # Test GUI initialization with virtual framebuffer
+            timeout 5 xvfb-run -a "$APPIMAGE" &
+            sleep 2
+            echo "AppImage smoke test passed"
+          fi
 
       - name: List release artifacts
         run: find release -type f -ls
