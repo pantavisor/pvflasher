@@ -4,14 +4,14 @@ param (
 )
 
 $ProjectName = "pvflasher"
-$RepoUrl = "https://gitlab.com/pantacor/pvflasher"
-$ApiUrl = "https://gitlab.com/api/v4/projects/pantacor%2Fpvflasher"
+$RepoUrl = "https://github.com/pantavisor/pvflasher"
+$ApiUrl = "https://api.github.com/repos/pantavisor/pvflasher"
 $InstallDir = Join-Path $env:LOCALAPPDATA "pvflasher"
 
 # Detect Architecture
-$Arch = "amd64"
+$Arch = "x86_64"
 if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:PROCESSOR_ARCHITEW6432 -eq "ARM64") {
-    $Arch = "arm64"
+    $Arch = "aarch64"
 }
 
 Write-Host "Installing $ProjectName for $Arch..." -ForegroundColor Cyan
@@ -19,8 +19,8 @@ Write-Host "Installing $ProjectName for $Arch..." -ForegroundColor Cyan
 # 1. Get version if not specified
 if (-not $Version) {
     Write-Host "Fetching latest release information..."
-    $Releases = Invoke-RestMethod -Uri "$ApiUrl/releases"
-    $Version = $Releases[0].tag_name
+    $Release = Invoke-RestMethod -Uri "$ApiUrl/releases/latest"
+    $Version = $Release.tag_name
 }
 
 if (-not $Version) {
@@ -31,8 +31,8 @@ if (-not $Version) {
 Write-Host "Installing version: $Version"
 
 # 2. Construct download URL for Windows zip
-# Filename pattern: pvflasher-windows-amd64.zip or pvflasher-windows-arm64.zip
-$ZipUrl = "$ApiUrl/packages/generic/$ProjectName/$Version/pvflasher-windows-$Arch.zip"
+# Filename pattern: pvflasher-windows-x86_64.zip or pvflasher-windows-aarch64.zip
+$ZipUrl = "$RepoUrl/releases/download/$Version/pvflasher-windows-$Arch.zip"
 $ZipFile = Join-Path $env:TEMP "pvflasher.zip"
 
 # 3. Download and Extract
@@ -50,15 +50,11 @@ if (-not (Test-Path $InstallDir)) {
 
 Write-Host "Extracting to $InstallDir..."
 Expand-Archive -Path $ZipFile -DestinationPath $InstallDir -Force
+Remove-Item -Path $ZipFile
 
-# 4. Add to User PATH if not already present
-$UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($UserPath -notlike "*$InstallDir*") {
-    Write-Host "Adding $InstallDir to User PATH..."
-    [Environment]::SetEnvironmentVariable("Path", "$UserPath;$InstallDir", "User")
-    $env:Path += ";$InstallDir"
-}
-
-Write-Host "Installation complete!" -ForegroundColor Green
-Write-Host "You may need to restart your terminal to use 'pvflasher'."
+Write-Host ""
+Write-Host "Done! Binary extracted to:" -ForegroundColor Green
+Write-Host "  $InstallDir\pvflasher.exe" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Move it to your preferred location and add that directory to your PATH."
 Write-Host "Note: Flashing physical drives on Windows requires Administrator privileges."

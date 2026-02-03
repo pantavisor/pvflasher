@@ -110,7 +110,7 @@ package-appimage-host-%: package-linux-%
 	@rm -rf packaging/appimage/PvFlasher.AppDir
 
 # Specialized target for Linux AMD64 to include all packages
-release-linux-amd64: package-linux-amd64 package-appimage-amd64 package-deb-amd64 package-rpm-amd64
+release-linux-amd64: package-linux-amd64 package-appimage-amd64 package-deb-amd64 package-rpm-amd64 package-archlinux-amd64
 	@echo "Gathering release artifacts for Linux AMD64..."
 	@mkdir -p release/linux
 	@if [ -f fyne-cross/dist/linux-amd64/$(BINARY_NAME).tar.xz ]; then \
@@ -119,7 +119,7 @@ release-linux-amd64: package-linux-amd64 package-appimage-amd64 package-deb-amd6
 	@echo "Artifacts available in release/linux/"
 
 # Specialized target for Linux ARM64 to include all packages
-release-linux-arm64: package-linux-arm64 package-appimage-arm64 package-deb-arm64 package-rpm-arm64
+release-linux-arm64: package-linux-arm64 package-appimage-arm64 package-deb-arm64 package-rpm-arm64 package-archlinux-arm64
 	@echo "Gathering release artifacts for Linux ARM64..."
 	@mkdir -p release/linux
 	@if [ -f fyne-cross/dist/linux-arm64/$(BINARY_NAME).tar.xz ]; then \
@@ -144,11 +144,24 @@ release-windows-%: package-windows-%
 		cd release/windows-$* && zip -q -r ../../release/windows/$(BINARY_NAME)-windows-$(call GET_REL_ARCH,$*).zip $(BINARY_NAME).exe; \
 	fi
 
+# Specific packaging for Darwin (overrides generic package-% if called directly via release-darwin-%)
+package-darwin-%: go.mod $(wildcard *.go) $(wildcard gui/*.go)
+	@echo "Building Fyne app for darwin ($*)..."
+	-GOOS=darwin GOARCH=$* CGO_ENABLED=1 \
+	fyne-cross darwin -arch=$* \
+		-name $(BINARY_NAME) \
+		-icon Icon.png \
+		-app-id com.pantacor.pvflasher \
+		-dir . \
+		-ldflags="$(LDFLAGS)"
+
 release-darwin-%: package-darwin-%
 	@echo "Gathering release artifacts for macOS $*..."
 	@mkdir -p release/darwin
 	@if [ -f fyne-cross/dist/darwin-$*/$(BINARY_NAME).zip ]; then \
 		cp fyne-cross/dist/darwin-$*/$(BINARY_NAME).zip release/darwin/$(BINARY_NAME)-darwin-$*.zip; \
+	else \
+		echo "Skipping macOS $* artifact (build failed or SDK missing)"; \
 	fi
 
 # Generic build rule for other targets (requires sysroot if cross-compiling)
@@ -209,22 +222,43 @@ package-appimage-arm64: package-linux-arm64
 	@rm -rf packaging/appimage/PvFlasher.AppDir
 
 package-deb-%: package-linux-%
-	@echo "Building Debian package for $*..."
+	@echo "Building Debian package for $* using nfpm..."
 	@mkdir -p release/linux
-	@chmod +x packaging/deb/*.sh
-	cd packaging/deb && bash ./build-deb.sh $(VERSION) $*
-	@rm -rf release/linux-$*
-	@rm -rf packaging/deb/pvflasher-*
+	export VERSION=$(VERSION) && \
+	export ARCH=$* && \
+	export BINARY_PATH=fyne-cross/bin/linux-$(if $(filter $*,amd64),amd64,arm64)/pvflasher && \
+	envsubst < nfpm.yaml > nfpm-$*.yaml && \
+	nfpm pkg --config nfpm-$*.yaml --packager deb --target release/linux/ && \
+	rm nfpm-$*.yaml
 
 package-rpm-%: package-linux-%
-	@echo "Building RPM package for $*..."
+	@echo "Building RPM package for $* using nfpm..."
 	@mkdir -p release/linux
-	@chmod +x packaging/rpm/*.sh
-	cd packaging/rpm && bash ./build-rpm.sh $(VERSION) $*
-	@rm -rf release/linux-$*
-	@rm -rf packaging/rpm/pvflasher-*/
+	export VERSION=$(VERSION) && \
+	export ARCH=$* && \
+	export BINARY_PATH=fyne-cross/bin/linux-$(if $(filter $*,amd64),amd64,arm64)/pvflasher && \
+	envsubst < nfpm.yaml > nfpm-$*.yaml && \
+	nfpm pkg --config nfpm-$*.yaml --packager rpm --target release/linux/ && \
+	rm nfpm-$*.yaml
 
-package: package-appimage-amd64 package-deb-amd64 package-rpm-amd64
+package-archlinux-%: package-linux-%
+	@echo "Building Arch Linux package for $* using nfpm..."
+	@mkdir -p release/linux
+	export VERSION=$(VERSION) && \
+	export ARCH=$* && \
+	export BINARY_PATH=fyne-cross/bin/linux-$(if $(filter $*,amd64),amd64,arm64)/pvflasher && \
+	envsubst < nfpm.yaml > nfpm-$*.yaml && \
+	nfpm pkg --config nfpm-$*.yaml --packager archlinux --target release/linux/ && \
+	rm nfpm-$*.yaml
+
+deps:
+	@echo "Installing dependencies..."
+	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+	go install github.com/fyne-io/fyne-cross@latest
+
+package: package-appimage-amd64 package-deb-amd64 package-rpm-amd64 package-archlinux-amd64
+
+package: package-appimage-amd64 package-deb-amd64 package-rpm-amd64 package-archlinux-amd64
 
 install-local: build
 	@echo "Installing pvflasher locally to ~/.local..."
