@@ -25,7 +25,7 @@ echo "Installing $PROJECT_NAME on $OS..."
 # Get version if not specified
 if [ -z "$VERSION" ]; then
 	echo "Fetching latest release information..."
-	VERSION=$(curl -s "$API_URL/releases/latest" | sed -n 's/.*"tag_name":"\([^"]*\)".*/\1/p')
+	VERSION=$(curl -s "$API_URL/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
 fi
 
 if [ -z "$VERSION" ]; then
