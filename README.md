@@ -36,22 +36,22 @@ Images are cached locally to avoid redundant downloads:
 
 ### Quick Install
 
-**Linux:**
+**Linux / macOS:**
 ```bash
 # Install latest
-curl -fsSL https://gitlab.com/pantacor/pvflasher/-/raw/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/pantavisor/pvflasher/main/scripts/install.sh | bash
 
 # Install specific version
-curl -fsSL https://gitlab.com/pantacor/pvflasher/-/raw/main/scripts/install.sh | bash -s -- v0.0.1
+curl -fsSL https://raw.githubusercontent.com/pantavisor/pvflasher/main/scripts/install.sh | bash -s -- v0.0.1
 ```
 
 **Windows (PowerShell):**
 ```powershell
 # Install latest
-powershell -c "irm https://gitlab.com/pantacor/pvflasher/-/raw/main/scripts/install.ps1 | iex"
+powershell -c "irm https://raw.githubusercontent.com/pantavisor/pvflasher/main/scripts/install.ps1 | iex"
 
 # Install specific version
-powershell -c "& { $(irm https://gitlab.com/pantacor/pvflasher/-/raw/main/scripts/install.ps1) } -Version v0.0.1"
+powershell -c "& { $(irm https://raw.githubusercontent.com/pantavisor/pvflasher/main/scripts/install.ps1) } -Version v0.0.1"
 ```
 
 ### Building from Source

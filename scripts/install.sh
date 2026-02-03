@@ -4,16 +4,15 @@ set -e
 # Configuration
 PROJECT_NAME="pvflasher"
 BINARY_NAME="pvflasher"
-REPO_URL="https://gitlab.com/pantacor/pvflasher"
-API_URL="https://gitlab.com/api/v4/projects/pantacor%2Fpvflasher"
+REPO_URL="https://github.com/pantavisor/pvflasher"
+API_URL="https://api.github.com/repos/pantavisor/pvflasher"
 
-# Detect Architecture
-ARCH=$(uname -m)
-case "$ARCH" in
-x86_64) FILE_ARCH="x86_64" ;;
-aarch64 | arm64) FILE_ARCH="aarch64" ;;
+# Detect OS
+OS=$(uname -s)
+case "$OS" in
+Linux | Darwin) ;;
 *)
-	echo "Unsupported architecture: $ARCH"
+	echo "Unsupported OS: $OS"
 	exit 1
 	;;
 esac
@@ -21,22 +20,12 @@ esac
 # Support specific version
 VERSION=$1
 
-# Directories
-BIN_DIR="$HOME/.local/bin"
-APP_DIR="$HOME/.local/share/applications"
-ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
-
-echo "Installing $PROJECT_NAME..."
-
-# Create directories
-mkdir -p "$BIN_DIR"
-mkdir -p "$APP_DIR"
-mkdir -p "$ICON_DIR"
+echo "Installing $PROJECT_NAME on $OS..."
 
 # Get version if not specified
 if [ -z "$VERSION" ]; then
 	echo "Fetching latest release information..."
-	VERSION=$(curl -s "$API_URL/releases" | grep -oP '"tag_name":"\K[^"]+' | head -1)
+	VERSION=$(curl -s "$API_URL/releases/latest" | sed -n 's/.*"tag_name":"\([^"]*\)".*/\1/p')
 fi
 
 if [ -z "$VERSION" ]; then
@@ -44,23 +33,35 @@ if [ -z "$VERSION" ]; then
 	exit 1
 fi
 
-echo "Installing version: $VERSION ($ARCH)"
+echo "Installing version: $VERSION"
 
-# Construct download URL for AppImage
-# Filename pattern: PvFlasher-x86_64.AppImage or PvFlasher-aarch64.AppImage
-APPIMAGE_URL="$API_URL/packages/generic/$PROJECT_NAME/$VERSION/PvFlasher-$FILE_ARCH.AppImage"
+if [ "$OS" = "Linux" ]; then
+	# --- Linux: AppImage install to ~/.local/bin ---
+	ARCH=$(uname -m)
+	case "$ARCH" in
+	x86_64) FILE_ARCH="x86_64" ;;
+	aarch64 | arm64) FILE_ARCH="aarch64" ;;
+	*)
+		echo "Unsupported architecture: $ARCH"
+		exit 1
+		;;
+	esac
 
-echo "Downloading AppImage from $APPIMAGE_URL..."
-curl -fL -o "$BIN_DIR/$BINARY_NAME" "$APPIMAGE_URL"
-chmod +x "$BIN_DIR/$BINARY_NAME"
+	BIN_DIR="$HOME/.local/bin"
+	APP_DIR="$HOME/.local/share/applications"
+	ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
+	mkdir -p "$BIN_DIR" "$APP_DIR" "$ICON_DIR"
 
-# Download Icon
-echo "Downloading icon..."
-curl -sL -o "$ICON_DIR/$BINARY_NAME.png" "$REPO_URL/-/raw/main/Icon.png"
+	APPIMAGE_URL="$REPO_URL/releases/download/$VERSION/PvFlasher-$VERSION-$FILE_ARCH.AppImage"
+	echo "Downloading AppImage..."
+	curl -fL -o "$BIN_DIR/$BINARY_NAME" "$APPIMAGE_URL"
+	chmod +x "$BIN_DIR/$BINARY_NAME"
 
-# Create Desktop Entry
-echo "Creating desktop entry..."
-cat >"$APP_DIR/$BINARY_NAME.desktop" <<EOF
+	echo "Downloading icon..."
+	curl -sL -o "$ICON_DIR/$BINARY_NAME.png" "https://raw.githubusercontent.com/pantavisor/pvflasher/main/Icon.png"
+
+	echo "Creating desktop entry..."
+	cat >"$APP_DIR/$BINARY_NAME.desktop" <<EOF
 [Desktop Entry]
 Name=PvFlasher
 Comment=Cross-platform USB Image Flasher
@@ -73,6 +74,42 @@ Keywords=usb;flash;image;disk;bmap;
 StartupNotify=true
 EOF
 
-echo "Installation complete!"
-echo "You can now run '$BINARY_NAME' from your terminal or application menu."
-echo "Note: Make sure $BIN_DIR is in your PATH."
+	echo ""
+	echo "Installation complete!"
+	echo "You can now run '$BINARY_NAME' from your terminal or application menu."
+	echo "Note: Make sure $BIN_DIR is in your PATH."
+
+elif [ "$OS" = "Darwin" ]; then
+	# --- macOS: zip install to /usr/local/bin ---
+	ARCH=$(uname -m)
+	case "$ARCH" in
+	x86_64) FILE_ARCH="amd64" ;;
+	arm64) FILE_ARCH="arm64" ;;
+	*)
+		echo "Unsupported architecture: $ARCH"
+		exit 1
+		;;
+	esac
+
+	INSTALL_DIR="/usr/local/bin"
+	ZIP_URL="$REPO_URL/releases/download/$VERSION/pvflasher-darwin-$FILE_ARCH.zip"
+	ZIP_FILE=$(mktemp /tmp/pvflasher-XXXXXX.zip)
+	EXTRACT_DIR=$(mktemp -d /tmp/pvflasher-XXXXXX)
+
+	echo "Downloading..."
+	curl -fL -o "$ZIP_FILE" "$ZIP_URL"
+
+	echo "Extracting..."
+	unzip -o "$ZIP_FILE" -d "$EXTRACT_DIR"
+
+	echo "Installing to $INSTALL_DIR (requires sudo)..."
+	sudo cp "$EXTRACT_DIR/$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
+	sudo chmod +x "$INSTALL_DIR/$BINARY_NAME"
+
+	rm -f "$ZIP_FILE"
+	rm -rf "$EXTRACT_DIR"
+
+	echo ""
+	echo "Installation complete!"
+	echo "You can now run '$BINARY_NAME' from your terminal."
+fi

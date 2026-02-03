@@ -77,20 +77,28 @@ else
 fi
 
 # Create a simple AppRun script (Fyne doesn't need GNOME schemas like GTK)
-cat >"$APP_DIR/AppRun" <<'APPRUN_EOF'
+if [ "$APPIMAGE_ARCH" = "x86_64" ]; then
+	LIBS_ARCH="x86_64-linux-gnu"
+elif [ "$APPIMAGE_ARCH" = "aarch64" ]; then
+	LIBS_ARCH="aarch64-linux-gnu"
+else
+	LIBS_ARCH="x86_64-linux-gnu"
+fi
+
+cat >"$APP_DIR/AppRun" <<APPRUN_EOF
 #!/bin/bash
-SELF=$(readlink -f "$0")
-HERE=${SELF%/*}
+SELF=\$(readlink -f "\$0")
+HERE=\${SELF%/*}
 
 # Set up library paths
-export PATH="${HERE}/usr/bin:${PATH}"
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
+export PATH="\${HERE}/usr/bin:\${PATH}"
+export LD_LIBRARY_PATH="\${HERE}/usr/lib:\${HERE}/usr/lib/${LIBS_ARCH}:\${LD_LIBRARY_PATH}"
 
 # Set up XDG paths for data files
-export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+export XDG_DATA_DIRS="\${HERE}/usr/share:\${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 
 # Run the application
-exec "${HERE}/usr/bin/pvflasher" "$@"
+exec "\${HERE}/usr/bin/pvflasher" "\$@"
 APPRUN_EOF
 
 chmod +x "$APP_DIR/AppRun"

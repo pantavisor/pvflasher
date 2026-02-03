@@ -27,9 +27,26 @@ cd "$(dirname "$0")/.."
 LINUXDEPLOY_BIN="linuxdeploy"
 if ! command -v linuxdeploy &>/dev/null; then
 	echo "linuxdeploy not found in PATH, downloading..."
-	LINUXDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
-	LINUXDEPLOY_BIN="$(pwd)/linuxdeploy-x86_64.AppImage"
+
+	HOST_ARCH=$(uname -m)
+	case "$HOST_ARCH" in
+	"x86_64")
+		LINUXDEPLOY_ARCH="x86_64"
+		;;
+	"aarch64" | "arm64")
+		LINUXDEPLOY_ARCH="aarch64"
+		;;
+	*)
+		echo "Warning: Unsupported host architecture for linuxdeploy: $HOST_ARCH. Defaulting to x86_64."
+		LINUXDEPLOY_ARCH="x86_64"
+		;;
+	esac
+
+	LINUXDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${LINUXDEPLOY_ARCH}.AppImage"
+	LINUXDEPLOY_BIN="$(pwd)/linuxdeploy-${LINUXDEPLOY_ARCH}.AppImage"
+
 	if [ ! -f "$LINUXDEPLOY_BIN" ]; then
+		echo "Downloading linuxdeploy for $HOST_ARCH..."
 		curl -L -o "$LINUXDEPLOY_BIN" "$LINUXDEPLOY_URL"
 		chmod +x "$LINUXDEPLOY_BIN"
 	fi
@@ -77,14 +94,22 @@ if [ -f "Icon.png" ]; then
 fi
 
 # Create AppRun script
-cat >"packaging/appimage/$APP_DIR/AppRun" <<'APPRUN_EOF'
+if [ "$APPIMAGE_ARCH" = "x86_64" ]; then
+	LIBS_ARCH="x86_64-linux-gnu"
+elif [ "$APPIMAGE_ARCH" = "aarch64" ]; then
+	LIBS_ARCH="aarch64-linux-gnu"
+else
+	LIBS_ARCH="x86_64-linux-gnu"
+fi
+
+cat >"packaging/appimage/$APP_DIR/AppRun" <<APPRUN_EOF
 #!/bin/bash
-SELF=$(readlink -f "$0")
-HERE=${SELF%/*}
-export PATH="${HERE}/usr/bin:${PATH}"
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
-export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-exec "${HERE}/usr/bin/pvflasher" "$@"
+SELF=\$(readlink -f "\$0")
+HERE=\${SELF%/*}
+export PATH="\${HERE}/usr/bin:\${PATH}"
+export LD_LIBRARY_PATH="\${HERE}/usr/lib:\${HERE}/usr/lib/${LIBS_ARCH}:\${LD_LIBRARY_PATH}"
+export XDG_DATA_DIRS="\${HERE}/usr/share:\${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+exec "\${HERE}/usr/bin/pvflasher" "\$@"
 APPRUN_EOF
 
 chmod +x "packaging/appimage/$APP_DIR/AppRun"

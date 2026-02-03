@@ -1,0 +1,53 @@
+name: "pvflasher"
+arch: "${ARCH}"
+platform: "linux"
+version: "${VERSION}"
+section: "utils"
+priority: "optional"
+maintainer: "Sergio Marin <sergio.marin@pantacor.com>"
+description: |
+  Cross-platform USB Image pvflasher
+  pvflasher is a fast and reliable USB image pvflasher with support for
+  bmap optimization, verification, and multiple image formats.
+homepage: "https://github.com/pantacor/pvflasher"
+license: "MIT"
+contents:
+  - src: "${BINARY_PATH}"
+    dst: "/usr/bin/pvflasher"
+    type: "tree"
+    file_info:
+      mode: 0755
+  - src: "packaging/pvflasher.desktop"
+    dst: "/usr/share/applications/pvflasher.desktop"
+  - src: "Icon.png"
+    dst: "/usr/share/icons/hicolor/256x256/apps/pvflasher.png"
+
+overrides:
+  deb:
+    depends:
+      - libc6
+      - libgl1
+      - libx11-6
+      - libxcursor1
+      - libxrandr2
+      - libxinerama1
+      - libxi6
+      - libxxf86vm1
+  rpm:
+    depends:
+      - libX11
+      - libXcursor
+      - libXrandr
+      - libXinerama
+      - libXi
+      - libXxf86vm
+      - mesa-libGL
+  archlinux:
+    depends:
+      - libx11
+      - libxcursor
+      - libxrandr
+      - libxinerama
+      - libxi
+      - libxxf86vm
+      - mesa
