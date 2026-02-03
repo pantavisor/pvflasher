@@ -1,4 +1,21 @@
 
+<a name="0.0.3"></a>
+## [0.0.3](https://github.com/pantavisor/pvflasher/compare/v0.0.2...0.0.3)
+
+> 2026-02-03
+
+### Feature
+
+* install uses the deb,rpm,and pkg when is possible
+
+### Fix
+
+* correct the build mechanism for darwin
+* solve shellcheck the install.sh
+* install.sh script on macosx should install into ~/.pvflasher/bin/pvflasher
+* install.sh tag selection for current
+
+
 <a name="v0.0.2"></a>
 ## [v0.0.2](https://github.com/pantavisor/pvflasher/compare/v0.0.1...v0.0.2)
 
@@ -6,8 +23,13 @@
 
 ### Feature
 
+* add chglog
 * save theme color selection
 * build system with nfpm
+
+### Fix
+
+* upload-artifact glob for nfpm packages
 
 
 <a name="v0.0.1"></a>
