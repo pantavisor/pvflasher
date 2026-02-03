@@ -89,18 +89,34 @@ func NewApp() *App {
 func (a *App) Run() {
 	a.fyneApp = app.New()
 
-	// Initialize theme based on system preference
-	if a.fyneApp.Settings().ThemeVariant() == theme.VariantDark {
-		util.GetTheme().SetMode(util.ThemeModeDark)
+	// Load configuration
+	config, err := util.LoadConfig()
+	if err == nil {
+		if config.Theme == "dark" {
+			util.GetTheme().SetMode(util.ThemeModeDark)
+		} else if config.Theme == "light" {
+			util.GetTheme().SetMode(util.ThemeModeLight)
+		} else {
+			// System preference
+			if a.fyneApp.Settings().ThemeVariant() == theme.VariantDark {
+				util.GetTheme().SetMode(util.ThemeModeDark)
+			} else {
+				util.GetTheme().SetMode(util.ThemeModeLight)
+			}
+		}
 	} else {
-		util.GetTheme().SetMode(util.ThemeModeLight)
+		// Fallback to system preference if config load fails
+		if a.fyneApp.Settings().ThemeVariant() == theme.VariantDark {
+			util.GetTheme().SetMode(util.ThemeModeDark)
+		} else {
+			util.GetTheme().SetMode(util.ThemeModeLight)
+		}
 	}
 
 	a.fyneApp.Settings().SetTheme(util.GetTheme())
 
 	a.window = a.fyneApp.NewWindow("PvFlasher")
 	a.window.Resize(fyne.NewSize(950, 650))
-	a.window.SetFixedSize(true)
 	a.window.CenterOnScreen()
 
 	// Build all views
@@ -119,13 +135,14 @@ func (a *App) buildMainView() {
 	// Create background rectangle
 	background := canvas.NewRectangle(util.CurrentBackgroundColor())
 
-	// Theme toggle button
-	themeToggle := util.ThemeToggleButton(a.fyneApp, func() {
-		a.rebuildAllViews()
+	// Settings button
+	settingsBtn := widget.NewButton("⚙️", func() {
+		a.showSettingsDialog()
 	})
+	settingsBtn.Importance = widget.LowImportance
 
-	// Title bar with theme toggle
-	titleBar := util.CreateTitleBarWithAction("⚡ PvFlasher - USB Image Flasher", themeToggle)
+	// Title bar with settings button
+	titleBar := util.CreateTitleBarWithAction("⚡ PvFlasher - USB Image Flasher", settingsBtn)
 
 	// Step 1: Image Selection Card
 	a.imageCard = cards.NewImageCard(a.window, cards.ImageCardCallbacks{
@@ -193,7 +210,7 @@ func (a *App) buildMainView() {
 	)
 
 	// Make content scrollable
-	scrollableContent := container.NewScroll(contentBox)
+	scrollableContent := container.NewVScroll(contentBox)
 
 	// Combine title bar (fixed) with scrollable content
 	mainLayout := container.NewBorder(
@@ -387,6 +404,55 @@ func (a *App) ShowLogsDialog() {
 	scrollable := container.NewVScroll(textWidget)
 	scrollable.SetMinSize(fyne.NewSize(600, 400))
 	dialog.ShowCustom("Flash Operation Logs", "Close", scrollable, a.window)
+}
+
+// showSettingsDialog shows the settings dialog for theme and scale
+func (a *App) showSettingsDialog() {
+	// Theme toggle
+	themeBtn := util.ThemeToggleButton(a.fyneApp, func() {
+		a.rebuildAllViews()
+	})
+
+	troubleshootingText := `This is a known ChromeOS issue with Linux apps.
+
+To fix:
+1. Right-click the PvFlasher icon in your shelf.
+2. Select 'Use low density' (or disable 'Display Scaling').
+3. Restart the app.
+
+This will force the app to render at native resolution (sharp).`
+
+	troubleshootingEntry := widget.NewMultiLineEntry()
+	troubleshootingEntry.SetText(troubleshootingText)
+	troubleshootingEntry.Disable() // Make read-only but copyable
+	troubleshootingEntry.TextStyle = fyne.TextStyle{Monospace: false}
+	troubleshootingEntry.Wrapping = fyne.TextWrapWord
+
+	smallTextInfo := `If the text is too small after fixing blurriness, try running the app from terminal with a scale factor:
+
+FYNE_SCALE=1.5 ./pvflasher`
+
+	smallTextEntry := widget.NewMultiLineEntry()
+	smallTextEntry.SetText(smallTextInfo)
+	smallTextEntry.Disable()
+	smallTextEntry.TextStyle = fyne.TextStyle{Monospace: true}
+	smallTextEntry.Wrapping = fyne.TextWrapWord
+
+	content := container.NewVBox(
+		widget.NewLabelWithStyle("Appearance", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		themeBtn,
+		util.SectionSpacer(10),
+		widget.NewLabelWithStyle("Troubleshooting", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle("Blurry on Chromebook?", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		troubleshootingEntry,
+		util.SectionSpacer(10),
+		widget.NewLabelWithStyle("Interface too small?", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		smallTextEntry,
+	)
+
+	d := dialog.NewCustom("Settings", "Close", content, a.window)
+	d.Resize(fyne.NewSize(500, 550))
+	d.Show()
 }
 
 // Setters for app state

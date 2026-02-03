@@ -346,6 +346,18 @@ func ThemeToggleButton(app fyne.App, refreshCallback func()) *widget.Button {
 		updateButton()
 		// Re-apply theme to trigger UI refresh
 		app.Settings().SetTheme(GetTheme())
+
+		// Save preference
+		config, err := LoadConfig()
+		if err == nil {
+			if GetTheme().IsDark() {
+				config.Theme = "dark"
+			} else {
+				config.Theme = "light"
+			}
+			SaveConfig(config)
+		}
+
 		if refreshCallback != nil {
 			refreshCallback()
 		}
@@ -494,7 +506,7 @@ func (cl *ColoredLabel) SetColor(c color.Color) {
 // CreateRenderer creates the renderer for this widget
 func (cl *ColoredLabel) CreateRenderer() fyne.WidgetRenderer {
 	lbl := widget.NewLabel(cl.Text)
-	lbl.Wrapping = fyne.TextWrapWord
+	lbl.Wrapping = fyne.TextWrapBreak
 	if cl.bold {
 		lbl.TextStyle = fyne.TextStyle{Bold: true}
 	}
@@ -537,7 +549,7 @@ func (r *coloredLabelRenderer) Refresh() {
 	if r.label.bold {
 		r.wrappedLabel.TextStyle = fyne.TextStyle{Bold: true}
 	}
-	r.wrappedLabel.Wrapping = fyne.TextWrapWord
+	r.wrappedLabel.Wrapping = fyne.TextWrapBreak
 	r.wrappedLabel.Refresh()
 }
 

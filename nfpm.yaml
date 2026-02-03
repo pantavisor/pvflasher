@@ -9,12 +9,11 @@ description: |
   Cross-platform USB Image pvflasher
   pvflasher is a fast and reliable USB image pvflasher with support for
   bmap optimization, verification, and multiple image formats.
-homepage: "https://github.com/pantacor/pvflasher"
+homepage: "https://github.com/pantavisor/pvflasher"
 license: "MIT"
 contents:
   - src: "${BINARY_PATH}"
     dst: "/usr/bin/pvflasher"
-    type: "tree"
     file_info:
       mode: 0755
   - src: "packaging/pvflasher.desktop"

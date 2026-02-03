@@ -258,8 +258,6 @@ deps:
 
 package: package-appimage-amd64 package-deb-amd64 package-rpm-amd64 package-archlinux-amd64
 
-package: package-appimage-amd64 package-deb-amd64 package-rpm-amd64 package-archlinux-amd64
-
 install-local: build
 	@echo "Installing pvflasher locally to ~/.local..."
 	@mkdir -p ~/.local/bin
