@@ -90,11 +90,13 @@ package-darwin-native-%:
 	@echo "Building native macOS app for $*..."
 	@mkdir -p release/darwin
 	GOARCH=$* CGO_ENABLED=1 \
+	go build -o $(BINARY_NAME) -ldflags "$(LDFLAGS)" .
 	fyne package -os darwin \
 		-name $(BINARY_NAME) \
 		-icon Icon.png \
 		-appID com.pantacor.pvflasher \
-		-ldflags="$(LDFLAGS)"
+		--executable $(BINARY_NAME)
+	@rm -f $(BINARY_NAME)
 	@echo "Ad-hoc signing $(BINARY_NAME).app..."
 	codesign --deep -f -s - $(BINARY_NAME).app
 	@mkdir -p release/darwin/$(BINARY_NAME)-darwin-$*
