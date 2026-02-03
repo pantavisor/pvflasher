@@ -183,7 +183,7 @@ elif [ "$OS" = "Darwin" ]; then
 	if [ -n "$SHELL_CONFIG" ] && [ -f "$SHELL_CONFIG" ]; then
 		if ! grep -q "$INSTALL_DIR" "$SHELL_CONFIG" 2>/dev/null; then
 			echo "Adding $INSTALL_DIR to PATH in $SHELL_CONFIG..."
-			echo 'export PATH="'$INSTALL_DIR':$PATH"' >>"$SHELL_CONFIG"
+			echo "export PATH=\"$INSTALL_DIR:\$PATH\"" >>"$SHELL_CONFIG"
 			echo ""
 			echo "Please run: source $SHELL_CONFIG"
 			echo "Or restart your terminal to use '$BINARY_NAME'"
@@ -193,7 +193,7 @@ elif [ "$OS" = "Darwin" ]; then
 	else
 		echo ""
 		echo "Please add the following to your shell configuration file:"
-		echo 'export PATH="'$INSTALL_DIR':$PATH"'
+		echo "export PATH=\"$INSTALL_DIR:\$PATH\""
 	fi
 
 	echo ""
