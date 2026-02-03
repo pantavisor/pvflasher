@@ -93,10 +93,13 @@ package-darwin-native-%:
 	fyne package -os darwin \
 		-name $(BINARY_NAME) \
 		-icon Icon.png \
-		-appID com.pantacor.pvflasher
+		-appID com.pantacor.pvflasher \
+		-ldflags="$(LDFLAGS)"
+	@echo "Ad-hoc signing $(BINARY_NAME).app..."
+	codesign --deep -f -s - $(BINARY_NAME).app
 	@mkdir -p release/darwin/$(BINARY_NAME)-darwin-$*
 	@mv $(BINARY_NAME).app release/darwin/$(BINARY_NAME)-darwin-$*/
-	@cd release/darwin && zip -r $(BINARY_NAME)-darwin-$*.zip $(BINARY_NAME)-darwin-$*
+	@cd release/darwin && zip -X -r $(BINARY_NAME)-darwin-$*.zip $(BINARY_NAME)-darwin-$*
 	@rm -rf release/darwin/$(BINARY_NAME)-darwin-$*
 	@echo "Created release/darwin/$(BINARY_NAME)-darwin-$*.zip"
 
