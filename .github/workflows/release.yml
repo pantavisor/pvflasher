@@ -189,7 +189,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-packages-linux
-          path: release/linux/*.{deb,rpm,tar.zst}
+          path: |
+            release/linux/*.deb
+            release/linux/*.rpm
+            release/linux/*.pkg.tar.zst
+          if-no-files-found: error
           retention-days: 7
 
   build-windows:
