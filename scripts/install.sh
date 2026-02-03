@@ -36,32 +36,78 @@ fi
 echo "Installing version: $VERSION"
 
 if [ "$OS" = "Linux" ]; then
-	# --- Linux: AppImage install to ~/.local/bin ---
+	# --- Linux: native package if possible, AppImage fallback ---
 	ARCH=$(uname -m)
 	case "$ARCH" in
-	x86_64) FILE_ARCH="x86_64" ;;
-	aarch64 | arm64) FILE_ARCH="aarch64" ;;
+	x86_64) FILE_ARCH="x86_64"; DEB_ARCH="amd64" ;;
+	aarch64 | arm64) FILE_ARCH="aarch64"; DEB_ARCH="arm64" ;;
 	*)
 		echo "Unsupported architecture: $ARCH"
 		exit 1
 		;;
 	esac
 
-	BIN_DIR="$HOME/.local/bin"
-	APP_DIR="$HOME/.local/share/applications"
-	ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
-	mkdir -p "$BIN_DIR" "$APP_DIR" "$ICON_DIR"
+	# Native package filenames omit the 'v' prefix (e.g. 0.0.2, not v0.0.2)
+	PKG_VERSION="${VERSION#v}"
 
-	APPIMAGE_URL="$REPO_URL/releases/download/$VERSION/PvFlasher-$VERSION-$FILE_ARCH.AppImage"
-	echo "Downloading AppImage..."
-	curl -fL -o "$BIN_DIR/$BINARY_NAME" "$APPIMAGE_URL"
-	chmod +x "$BIN_DIR/$BINARY_NAME"
+	# Detect package manager (order matters: pacman before apt/dnf)
+	if command -v pacman &>/dev/null; then
+		PKG_MGR="pacman"
+	elif command -v apt &>/dev/null; then
+		PKG_MGR="apt"
+	elif command -v dnf &>/dev/null; then
+		PKG_MGR="dnf"
+	elif command -v yum &>/dev/null; then
+		PKG_MGR="yum"
+	else
+		PKG_MGR=""
+	fi
 
-	echo "Downloading icon..."
-	curl -sL -o "$ICON_DIR/$BINARY_NAME.png" "https://raw.githubusercontent.com/pantavisor/pvflasher/main/Icon.png"
+	if [ "$PKG_MGR" = "pacman" ]; then
+		PKG_FILE="pvflasher-${PKG_VERSION}-1-${FILE_ARCH}.pkg.tar.zst"
+		echo "Detected Arch Linux (pacman). Downloading $PKG_FILE..."
+		TMP_FILE=$(mktemp /tmp/pvflasher-XXXXXX.pkg.tar.zst)
+		curl -fL -o "$TMP_FILE" "$REPO_URL/releases/download/$VERSION/$PKG_FILE"
+		echo "Installing (requires sudo)..."
+		sudo pacman -U --noconfirm "$TMP_FILE"
+		rm -f "$TMP_FILE"
 
-	echo "Creating desktop entry..."
-	cat >"$APP_DIR/$BINARY_NAME.desktop" <<EOF
+	elif [ "$PKG_MGR" = "apt" ]; then
+		PKG_FILE="pvflasher_${PKG_VERSION}_${DEB_ARCH}.deb"
+		echo "Detected Debian/Ubuntu (apt). Downloading $PKG_FILE..."
+		TMP_FILE=$(mktemp /tmp/pvflasher-XXXXXX.deb)
+		curl -fL -o "$TMP_FILE" "$REPO_URL/releases/download/$VERSION/$PKG_FILE"
+		echo "Installing (requires sudo)..."
+		sudo apt install -y "$TMP_FILE"
+		rm -f "$TMP_FILE"
+
+	elif [ "$PKG_MGR" = "dnf" ] || [ "$PKG_MGR" = "yum" ]; then
+		PKG_FILE="pvflasher-${PKG_VERSION}-1.${FILE_ARCH}.rpm"
+		echo "Detected RPM-based distro ($PKG_MGR). Downloading $PKG_FILE..."
+		TMP_FILE=$(mktemp /tmp/pvflasher-XXXXXX.rpm)
+		curl -fL -o "$TMP_FILE" "$REPO_URL/releases/download/$VERSION/$PKG_FILE"
+		echo "Installing (requires sudo)..."
+		sudo $PKG_MGR install -y "$TMP_FILE"
+		rm -f "$TMP_FILE"
+
+	else
+		# Fallback: AppImage works on any Linux without a package manager
+		echo "No supported package manager found. Falling back to AppImage..."
+		BIN_DIR="$HOME/.local/bin"
+		APP_DIR="$HOME/.local/share/applications"
+		ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
+		mkdir -p "$BIN_DIR" "$APP_DIR" "$ICON_DIR"
+
+		APPIMAGE_URL="$REPO_URL/releases/download/$VERSION/PvFlasher-$VERSION-$FILE_ARCH.AppImage"
+		echo "Downloading AppImage..."
+		curl -fL -o "$BIN_DIR/$BINARY_NAME" "$APPIMAGE_URL"
+		chmod +x "$BIN_DIR/$BINARY_NAME"
+
+		echo "Downloading icon..."
+		curl -sL -o "$ICON_DIR/$BINARY_NAME.png" "https://raw.githubusercontent.com/pantavisor/pvflasher/main/Icon.png"
+
+		echo "Creating desktop entry..."
+		cat >"$APP_DIR/$BINARY_NAME.desktop" <<EOF
 [Desktop Entry]
 Name=PvFlasher
 Comment=Cross-platform USB Image Flasher
@@ -74,10 +120,16 @@ Keywords=usb;flash;image;disk;bmap;
 StartupNotify=true
 EOF
 
+		echo ""
+		echo "Installation complete!"
+		echo "You can now run '$BINARY_NAME' from your terminal or application menu."
+		echo "Note: Make sure $BIN_DIR is in your PATH."
+		exit 0
+	fi
+
 	echo ""
 	echo "Installation complete!"
 	echo "You can now run '$BINARY_NAME' from your terminal or application menu."
-	echo "Note: Make sure $BIN_DIR is in your PATH."
 
 elif [ "$OS" = "Darwin" ]; then
 	# --- macOS: zip install to /usr/local/bin ---
