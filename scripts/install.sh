@@ -39,8 +39,14 @@ if [ "$OS" = "Linux" ]; then
 	# --- Linux: native package if possible, AppImage fallback ---
 	ARCH=$(uname -m)
 	case "$ARCH" in
-	x86_64) FILE_ARCH="x86_64"; DEB_ARCH="amd64" ;;
-	aarch64 | arm64) FILE_ARCH="aarch64"; DEB_ARCH="arm64" ;;
+	x86_64)
+		FILE_ARCH="x86_64"
+		DEB_ARCH="amd64"
+		;;
+	aarch64 | arm64)
+		FILE_ARCH="aarch64"
+		DEB_ARCH="arm64"
+		;;
 	*)
 		echo "Unsupported architecture: $ARCH"
 		exit 1
@@ -132,7 +138,7 @@ EOF
 	echo "You can now run '$BINARY_NAME' from your terminal or application menu."
 
 elif [ "$OS" = "Darwin" ]; then
-	# --- macOS: zip install to /usr/local/bin ---
+	# --- macOS: zip install to ~/.pvflasher/bin/ ---
 	ARCH=$(uname -m)
 	case "$ARCH" in
 	x86_64) FILE_ARCH="amd64" ;;
@@ -143,10 +149,13 @@ elif [ "$OS" = "Darwin" ]; then
 		;;
 	esac
 
-	INSTALL_DIR="/usr/local/bin"
+	INSTALL_DIR="$HOME/.pvflasher/bin"
 	ZIP_URL="$REPO_URL/releases/download/$VERSION/pvflasher-darwin-$FILE_ARCH.zip"
 	ZIP_FILE=$(mktemp /tmp/pvflasher-XXXXXX.zip)
 	EXTRACT_DIR=$(mktemp -d /tmp/pvflasher-XXXXXX)
+
+	echo "Creating installation directory..."
+	mkdir -p "$INSTALL_DIR"
 
 	echo "Downloading..."
 	curl -fL -o "$ZIP_FILE" "$ZIP_URL"
@@ -154,14 +163,39 @@ elif [ "$OS" = "Darwin" ]; then
 	echo "Extracting..."
 	unzip -o "$ZIP_FILE" -d "$EXTRACT_DIR"
 
-	echo "Installing to $INSTALL_DIR (requires sudo)..."
-	sudo cp "$EXTRACT_DIR/$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
-	sudo chmod +x "$INSTALL_DIR/$BINARY_NAME"
+	echo "Installing to $INSTALL_DIR..."
+	cp "$EXTRACT_DIR/$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
+	chmod +x "$INSTALL_DIR/$BINARY_NAME"
 
 	rm -f "$ZIP_FILE"
 	rm -rf "$EXTRACT_DIR"
 
+	# Detect shell and add to PATH
+	SHELL_NAME=$(basename "$SHELL")
+	case "$SHELL_NAME" in
+	bash) SHELL_CONFIG="$HOME/.bashrc" ;;
+	zsh) SHELL_CONFIG="$HOME/.zshrc" ;;
+	fish) SHELL_CONFIG="$HOME/.config/fish/config.fish" ;;
+	ksh) SHELL_CONFIG="$HOME/.kshrc" ;;
+	*) SHELL_CONFIG="" ;;
+	esac
+
+	if [ -n "$SHELL_CONFIG" ] && [ -f "$SHELL_CONFIG" ]; then
+		if ! grep -q "$INSTALL_DIR" "$SHELL_CONFIG" 2>/dev/null; then
+			echo "Adding $INSTALL_DIR to PATH in $SHELL_CONFIG..."
+			echo 'export PATH="'$INSTALL_DIR':$PATH"' >>"$SHELL_CONFIG"
+			echo ""
+			echo "Please run: source $SHELL_CONFIG"
+			echo "Or restart your terminal to use '$BINARY_NAME'"
+		else
+			echo "$INSTALL_DIR is already in your PATH."
+		fi
+	else
+		echo ""
+		echo "Please add the following to your shell configuration file:"
+		echo 'export PATH="'$INSTALL_DIR':$PATH"'
+	fi
+
 	echo ""
 	echo "Installation complete!"
-	echo "You can now run '$BINARY_NAME' from your terminal."
 fi
