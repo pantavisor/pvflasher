@@ -97,4 +97,4 @@ See the [User Guide](docs/USER_GUIDE.md) for full command documentation.
 
 ## 📄 License
 
-[License Type TBD]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
