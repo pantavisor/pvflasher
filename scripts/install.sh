@@ -56,7 +56,8 @@ if [ "$OS" = "Linux" ]; then
 	# Native package filenames omit the 'v' prefix (e.g. 0.0.2, not v0.0.2)
 	PKG_VERSION="${VERSION#v}"
 
-	# Detect package manager (order matters: pacman before apt/dnf)
+	# Detect package manager
+	PKG_MGR=""
 	if command -v pacman &>/dev/null; then
 		PKG_MGR="pacman"
 	elif command -v apt &>/dev/null; then
@@ -65,11 +66,17 @@ if [ "$OS" = "Linux" ]; then
 		PKG_MGR="dnf"
 	elif command -v yum &>/dev/null; then
 		PKG_MGR="yum"
-	else
-		PKG_MGR=""
 	fi
 
-	if [ "$PKG_MGR" = "pacman" ]; then
+	# Check if we should use package manager (requires sudo/root)
+	USE_PKG_MGR=false
+	if [ -n "$PKG_MGR" ]; then
+		if [ "$EUID" -eq 0 ] || command -v sudo &>/dev/null; then
+			USE_PKG_MGR=true
+		fi
+	fi
+
+	if [ "$USE_PKG_MGR" = true ] && [ "$PKG_MGR" = "pacman" ]; then
 		PKG_FILE="pvflasher-${PKG_VERSION}-1-${FILE_ARCH}.pkg.tar.zst"
 		echo "Detected Arch Linux (pacman). Downloading $PKG_FILE..."
 		TMP_FILE=$(mktemp /tmp/pvflasher-XXXXXX.pkg.tar.zst)
@@ -78,7 +85,7 @@ if [ "$OS" = "Linux" ]; then
 		sudo pacman -U --noconfirm "$TMP_FILE"
 		rm -f "$TMP_FILE"
 
-	elif [ "$PKG_MGR" = "apt" ]; then
+	elif [ "$USE_PKG_MGR" = true ] && [ "$PKG_MGR" = "apt" ]; then
 		PKG_FILE="pvflasher_${PKG_VERSION}_${DEB_ARCH}.deb"
 		echo "Detected Debian/Ubuntu (apt). Downloading $PKG_FILE..."
 		TMP_FILE=$(mktemp /tmp/pvflasher-XXXXXX.deb)
@@ -87,7 +94,7 @@ if [ "$OS" = "Linux" ]; then
 		sudo apt install -y "$TMP_FILE"
 		rm -f "$TMP_FILE"
 
-	elif [ "$PKG_MGR" = "dnf" ] || [ "$PKG_MGR" = "yum" ]; then
+	elif [ "$USE_PKG_MGR" = true ] && ([ "$PKG_MGR" = "dnf" ] || [ "$PKG_MGR" = "yum" ]); then
 		PKG_FILE="pvflasher-${PKG_VERSION}-1.${FILE_ARCH}.rpm"
 		echo "Detected RPM-based distro ($PKG_MGR). Downloading $PKG_FILE..."
 		TMP_FILE=$(mktemp /tmp/pvflasher-XXXXXX.rpm)
@@ -97,20 +104,28 @@ if [ "$OS" = "Linux" ]; then
 		rm -f "$TMP_FILE"
 
 	else
-		# Fallback: AppImage works on any Linux without a package manager
-		echo "No supported package manager found. Falling back to AppImage..."
+		# Fallback: AppImage works on any Linux without a package manager (or if no sudo)
+		if [ -n "$PKG_MGR" ]; then
+			echo "Package manager $PKG_MGR found, but sudo is not available. Falling back to local installation..."
+		else
+			echo "No supported package manager found. Falling back to AppImage..."
+		fi
+		
 		BIN_DIR="$HOME/.local/bin"
 		APP_DIR="$HOME/.local/share/applications"
 		ICON_DIR="$HOME/.local/share/icons/hicolor/256x256/apps"
 		mkdir -p "$BIN_DIR" "$APP_DIR" "$ICON_DIR"
 
 		APPIMAGE_URL="$REPO_URL/releases/download/$VERSION/PvFlasher-$VERSION-$FILE_ARCH.AppImage"
-		echo "Downloading AppImage..."
-		curl -fL -o "$BIN_DIR/$BINARY_NAME" "$APPIMAGE_URL"
-		chmod +x "$BIN_DIR/$BINARY_NAME"
+		echo "Downloading AppImage to $BIN_DIR/$BINARY_NAME..."
+		# Use a temp file and mv to avoid "Text file busy" errors if updating while running
+		curl -fL -o "$BIN_DIR/$BINARY_NAME.tmp" "$APPIMAGE_URL"
+		chmod +x "$BIN_DIR/$BINARY_NAME.tmp"
+		mv -f "$BIN_DIR/$BINARY_NAME.tmp" "$BIN_DIR/$BINARY_NAME"
 
 		echo "Downloading icon..."
-		curl -sL -o "$ICON_DIR/$BINARY_NAME.png" "https://raw.githubusercontent.com/pantavisor/pvflasher/main/Icon.png"
+		curl -sL -o "$ICON_DIR/$BINARY_NAME.png.tmp" "https://raw.githubusercontent.com/pantavisor/pvflasher/main/Icon.png"
+		mv -f "$ICON_DIR/$BINARY_NAME.png.tmp" "$ICON_DIR/$BINARY_NAME.png"
 
 		echo "Creating desktop entry..."
 		cat >"$APP_DIR/$BINARY_NAME.desktop" <<EOF
@@ -163,9 +178,10 @@ elif [ "$OS" = "Darwin" ]; then
 	echo "Extracting..."
 	unzip -o "$ZIP_FILE" -d "$EXTRACT_DIR"
 
-	echo "Installing to $INSTALL_DIR..."
-	cp "$EXTRACT_DIR/$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
-	chmod +x "$INSTALL_DIR/$BINARY_NAME"
+		echo "Installing to $INSTALL_DIR..."
+	# Use mv instead of cp to handle "Text file busy" if updating while running
+	chmod +x "$EXTRACT_DIR/$BINARY_NAME"
+	mv -f "$EXTRACT_DIR/$BINARY_NAME" "$INSTALL_DIR/$BINARY_NAME"
 
 	rm -f "$ZIP_FILE"
 	rm -rf "$EXTRACT_DIR"
