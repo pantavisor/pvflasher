@@ -68,6 +68,8 @@ Simply run the application:
 pvflasher
 ```
 
+![PVFlasher GUI](screenshot.png)
+
 1.  **Select Image**: Drag & drop or browse for your image file.
 2.  **Select Device**: Choose the target USB drive from the list.
 3.  **Flash**: Click the flash button to start.
