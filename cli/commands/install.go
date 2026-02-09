@@ -232,9 +232,9 @@ var installCmd = &cobra.Command{
 		opts := flash.Options{
 			ImagePath:  cachePath,
 			DevicePath: targetDevice.Name,
-			Force:    force,
-			NoVerify: noVerify,
-			NoEject:  noEject,
+			Force:      force,
+			NoVerify:   noVerify,
+			NoEject:    noEject,
 			ProgressCb: func(p flash.Progress) {
 				if bar.GetMax() == -1 && p.BytesTotal > 0 {
 					bar.ChangeMax64(p.BytesTotal)
@@ -263,7 +263,7 @@ var installCmd = &cobra.Command{
 		if result != nil {
 			fmt.Printf("\n✅ Flash completed successfully!\n")
 			fmt.Printf("   Bytes written: %d (%.2f MB)\n", result.BytesWritten, float64(result.BytesWritten)/(1024*1024))
-			fmt.Printf("   Duration: %v\n", result.Duration)
+			fmt.Printf("   Duration: %.2fs\n", result.Duration.Seconds())
 			fmt.Printf("   Average speed: %.2f MB/s\n", result.AverageSpeed/(1024*1024))
 		}
 
@@ -295,6 +295,6 @@ func init() {
 	installCmd.Flags().BoolVar(&force, "force", false, "allow writing to mounted devices")
 	installCmd.Flags().BoolVar(&noVerify, "no-verify", false, "skip verification after flash")
 	installCmd.Flags().BoolVar(&noEject, "no-eject", false, "don't eject device after flash")
-	
+
 	rootCmd.AddCommand(installCmd)
 }

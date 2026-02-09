@@ -112,7 +112,7 @@ var copyCmd = &cobra.Command{
 			} else {
 				fmt.Printf("\n✅ Flash completed successfully!\n")
 				fmt.Printf("   Bytes written: %d (%.2f MB)\n", result.BytesWritten, float64(result.BytesWritten)/(1024*1024))
-				fmt.Printf("   Duration: %v\n", result.Duration)
+				fmt.Printf("   Duration: %.2fs\n", result.Duration.Seconds())
 				fmt.Printf("   Average speed: %.2f MB/s\n", result.AverageSpeed/(1024*1024))
 			}
 		}
