@@ -240,10 +240,28 @@ func (f *Flasher) Flash(ctx context.Context) (*FlashResult, error) {
 	}
 
 	// 5. Sync
-	f.reportPhase("syncing")
+	f.reportPhaseWithBytes("syncing", writtenBytes)
+
+	// Start a goroutine to update elapsed time during sync
+	syncDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				f.reportPhaseWithBytes("syncing", writtenBytes)
+			case <-syncDone:
+				return
+			}
+		}
+	}()
+
 	if err := dev.Sync(); err != nil {
+		close(syncDone)
 		return nil, fmt.Errorf("failed to sync device: %w", err)
 	}
+	close(syncDone)
 
 	// 6. Verification
 	verificationDone := false
@@ -268,7 +286,7 @@ func (f *Flasher) Flash(ctx context.Context) (*FlashResult, error) {
 	// 7. Eject
 	deviceEjected := false
 	if !f.opts.NoEject {
-		f.reportPhase("ejecting")
+		f.reportPhaseWithBytes("ejecting", writtenBytes)
 		if err := platform.EjectDevice(f.opts.DevicePath); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to eject device: %v\n", err)
 		} else {
@@ -308,6 +326,17 @@ func (f *Flasher) reportPhase(phase string) {
 		f.opts.ProgressCb(Progress{
 			Phase:      phase,
 			Percentage: 100,
+		})
+	}
+}
+
+func (f *Flasher) reportPhaseWithBytes(phase string, bytes int64) {
+	if f.opts.ProgressCb != nil {
+		f.opts.ProgressCb(Progress{
+			Phase:          phase,
+			BytesProcessed: bytes,
+			BytesTotal:     bytes,
+			Percentage:     100,
 		})
 	}
 }
