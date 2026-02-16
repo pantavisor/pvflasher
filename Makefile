@@ -1,6 +1,7 @@
 BINARY_NAME=pvflasher
 VERSION ?= $(shell git describe --tags --always --dirty="-dev" 2>/dev/null || echo "1.0.0")
 LDFLAGS := -X=pvflasher/internal/version.Version=$(VERSION)
+PREFIX ?= /usr/local
 
 LINUX_AMD64_LIBS = /usr/lib /usr/lib64 /usr/lib/x86_64-linux-gnu
 LINUX_ARM64_LIBS = /usr/lib /usr/lib64 /usr/lib/aarch64-linux-gnu
@@ -35,7 +36,7 @@ REL_ARCH_amd64 = x86_64
 REL_ARCH_arm64 = aarch64
 GET_REL_ARCH = $(if $(REL_ARCH_$1),$(REL_ARCH_$1),$1)
 
-.PHONY: all build clean test run package-appimage package-deb package-rpm install-local help debian-deps
+.PHONY: all build clean test run package-appimage package-deb package-rpm install uninstall install-local uninstall-local help debian-deps
 
 all: build
 
@@ -263,6 +264,24 @@ deps:
 
 package: package-appimage-amd64 package-deb-amd64 package-rpm-amd64 package-archlinux-amd64
 
+install: build
+	@echo "Installing pvflasher globally to $(PREFIX)..."
+	@mkdir -p $(DESTDIR)$(PREFIX)/bin
+	@mkdir -p $(DESTDIR)$(PREFIX)/share/applications
+	@mkdir -p $(DESTDIR)$(PREFIX)/share/icons/hicolor/256x256/apps
+	@install -m 755 bin/pvflasher $(DESTDIR)$(PREFIX)/bin/pvflasher
+	@sed "s|Exec=/usr/bin/pvflasher|Exec=$(PREFIX)/bin/pvflasher|g" packaging/pvflasher.desktop > $(DESTDIR)$(PREFIX)/share/applications/pvflasher.desktop
+	@chmod 644 $(DESTDIR)$(PREFIX)/share/applications/pvflasher.desktop
+	@install -m 644 Icon.png $(DESTDIR)$(PREFIX)/share/icons/hicolor/256x256/apps/pvflasher.png
+	@echo "Installation complete!"
+
+uninstall:
+	@echo "Uninstalling pvflasher from $(PREFIX)..."
+	@rm -f $(DESTDIR)$(PREFIX)/bin/pvflasher
+	@rm -f $(DESTDIR)$(PREFIX)/share/applications/pvflasher.desktop
+	@rm -f $(DESTDIR)$(PREFIX)/share/icons/hicolor/256x256/apps/pvflasher.png
+	@echo "Uninstallation complete!"
+
 install-local: build
 	@echo "Installing pvflasher locally to ~/.local..."
 	@mkdir -p ~/.local/bin
@@ -275,13 +294,23 @@ install-local: build
 	@echo "Installation complete!"
 	@echo "Make sure ~/.local/bin is in your PATH to run: pvflasher"
 
+uninstall-local:
+	@echo "Uninstalling pvflasher from ~/.local..."
+	@rm -f ~/.local/bin/pvflasher
+	@rm -f ~/.local/share/applications/pvflasher.desktop
+	@rm -f ~/.local/share/icons/hicolor/256x256/apps/pvflasher.png
+	@echo "Uninstallation complete!"
+
 help:
 	@echo "pvflasher Build System (Fyne GUI)"
 	@echo "=================================="
 	@echo "  make build              - Build native binary"
 	@echo "  make build-linux-amd64  - Build for Linux x64 using Zig"
 	@echo "  make build-linux-arm64  - Build for Linux ARM64 using Zig"
+	@echo "  make install            - Build and install globally (default PREFIX=/usr/local)"
+	@echo "  make uninstall          - Uninstall globally"
 	@echo "  make install-local      - Build and install locally to ~/.local"
+	@echo "  make uninstall-local    - Uninstall locally"
 	@echo "  make package-appimage   - Create Linux AppImage using Docker"
 	@echo "  make package-deb        - Create Debian package"
 	@echo "  make package-rpm        - Create RPM package"
