@@ -43,32 +43,6 @@ GET_REL_ARCH = $(if $(REL_ARCH_$1),$(REL_ARCH_$1),$1)
 
 all: build
 
-fix-macos-sdk-links:
-	@if [ -z "$(MACOSX_SDK_PATH)" ]; then \
-		echo "macOS SDK not found. Set MACOSX_SDK_PATH or place an SDK under ./SDKs"; \
-		exit 1; \
-	fi
-	@echo "Repairing framework symlinks in $(MACOSX_SDK_PATH)..."
-	@find "$(MACOSX_SDK_PATH)/System/Library/Frameworks" -type d -name "*.framework" | while read -r fw; do \
-		current_ver=$$(find "$$fw/Versions" -mindepth 1 -maxdepth 1 -type d | xargs -n1 basename | sort | head -n1); \
-		if [ -n "$$current_ver" ]; then \
-			ln -sfn "$$current_ver" "$$fw/Versions/Current"; \
-			if [ -d "$$fw/Versions/Current/Headers" ]; then \
-				ln -sfn "Versions/Current/Headers" "$$fw/Headers"; \
-			fi; \
-			if [ -d "$$fw/Versions/Current/Modules" ]; then \
-				ln -sfn "Versions/Current/Modules" "$$fw/Modules"; \
-			fi; \
-			if [ -d "$$fw/Versions/Current/Resources" ]; then \
-				ln -sfn "Versions/Current/Resources" "$$fw/Resources"; \
-			fi; \
-			fw_name=$$(basename "$$fw" .framework); \
-			if [ -f "$$fw/Versions/Current/$$fw_name.tbd" ]; then \
-				ln -sfn "Versions/Current/$$fw_name.tbd" "$$fw/$$fw_name.tbd"; \
-			fi; \
-		fi; \
-	done
-
 build:
 	@echo "Building native pvflasher $(VERSION)..."
 	@mkdir -p bin
@@ -180,7 +154,7 @@ release-windows-%: package-windows-%
 	fi
 
 # Specific packaging for Darwin (overrides generic package-% if called directly via release-darwin-%)
-package-darwin-%: fix-macos-sdk-links go.mod $(wildcard *.go) $(wildcard gui/*.go)
+package-darwin-%: go.mod $(wildcard *.go) $(wildcard gui/*.go)
 	@echo "Building Fyne app for darwin ($*)..."
 	@if [ -z "$(MACOSX_SDK_PATH)" ]; then \
 		echo "macOS SDK not found. Set MACOSX_SDK_PATH or place an SDK under ./SDKs"; \
