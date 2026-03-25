@@ -487,9 +487,10 @@ func (a *App) showSettingsDialog() {
 	troubleshootingHint := widget.NewLabel("Troubleshooting and display-scaling notes live in the repository guide.")
 	troubleshootingHint.Wrapping = fyne.TextWrapWord
 
-	troubleshootingPath := widget.NewEntry()
-	troubleshootingPath.SetText("docs/TROUBLESHOOTING.md")
-	troubleshootingPath.Disable()
+	troubleshootingLink := newFooterLink(
+		"Open Troubleshooting Guide",
+		"https://github.com/pantavisor/pvflasher/blob/main/docs/TROUBLESHOOTING.md",
+	)
 
 	content := container.NewVBox(
 		widget.NewLabelWithStyle("Appearance", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
@@ -497,7 +498,7 @@ func (a *App) showSettingsDialog() {
 		util.SectionSpacer(10),
 		widget.NewLabelWithStyle("Troubleshooting", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		troubleshootingHint,
-		troubleshootingPath,
+		troubleshootingLink,
 	)
 
 	d := dialog.NewCustom("Settings", "Close", content, a.window)
