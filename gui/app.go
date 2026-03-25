@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -115,7 +117,7 @@ func (a *App) Run() {
 
 	a.fyneApp.Settings().SetTheme(util.GetTheme())
 
-	a.window = a.fyneApp.NewWindow("PvFlasher")
+	a.window = a.fyneApp.NewWindow("PvFlasher | Pantacor")
 	a.window.Resize(fyne.NewSize(950, 650))
 	a.window.CenterOnScreen()
 
@@ -142,7 +144,39 @@ func (a *App) buildMainView() {
 	settingsBtn.Importance = widget.LowImportance
 
 	// Title bar with settings button
-	titleBar := util.CreateTitleBarWithAction("⚡ PvFlasher - USB Image Flasher", settingsBtn)
+	titleBar := util.CreateTitleBarWithAction("⚡ PvFlasher", settingsBtn)
+
+	logo := canvas.NewImageFromFile(pantacorLogoPath())
+	logo.FillMode = canvas.ImageFillContain
+	logo.SetMinSize(fyne.NewSize(158, 36))
+
+	slogan := widget.NewLabel("Built with love as a tool for Pantavisor and any other OS image.")
+	slogan.Wrapping = fyne.TextWrapWord
+	slogan.Alignment = fyne.TextAlignCenter
+
+	brandLinks := container.NewHBox(
+		layout.NewSpacer(),
+		newFooterLink("pantacor.com", "https://pantacor.com/"),
+		widget.NewLabel("•"),
+		newFooterLink("pantavisor.io", "https://pantavisor.io/"),
+		layout.NewSpacer(),
+	)
+
+	centerContent := container.NewVBox(
+		slogan,
+		util.SectionSpacer(2),
+		brandLinks,
+	)
+
+	footerContent := container.NewBorder(
+		nil,
+		nil,
+		logo,
+		nil,
+		container.NewPadded(centerContent),
+	)
+
+	brandFooter := util.StyledCardWithBorder(footerContent)
 
 	// Step 1: Image Selection Card
 	a.imageCard = cards.NewImageCard(a.window, cards.ImageCardCallbacks{
@@ -206,6 +240,8 @@ func (a *App) buildMainView() {
 	contentBox := container.NewVBox(
 		util.SectionSpacer(24),
 		centeredCards,
+		util.SectionSpacer(16),
+		brandFooter,
 		util.SectionSpacer(24),
 	)
 
@@ -227,6 +263,41 @@ func (a *App) buildMainView() {
 		mainLayout,
 	)
 }
+
+func mustParseURL(raw string) *url.URL {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		panic(err)
+	}
+	return parsed
+}
+
+func pantacorLogoPath() string {
+	if util.GetTheme().IsDark() {
+		return "assets/pantacor-logo-dark.svg"
+	}
+	return "assets/pantacor-logo.svg"
+}
+
+type footerLink struct {
+	widget.Label
+	target *url.URL
+}
+
+func newFooterLink(text, rawURL string) *footerLink {
+	link := &footerLink{target: mustParseURL(rawURL)}
+	link.ExtendBaseWidget(link)
+	link.SetText(text)
+	link.Alignment = fyne.TextAlignCenter
+	link.TextStyle = fyne.TextStyle{Bold: true}
+	return link
+}
+
+func (l *footerLink) Tapped(*fyne.PointEvent) {
+	_ = fyne.CurrentApp().OpenURL(l.target)
+}
+
+func (l *footerLink) TappedSecondary(*fyne.PointEvent) {}
 
 // buildProgressScreen builds the progress display screen
 func (a *App) buildProgressScreen() {
@@ -413,45 +484,24 @@ func (a *App) showSettingsDialog() {
 		a.rebuildAllViews()
 	})
 
-	troubleshootingText := `This is a known ChromeOS issue with Linux apps.
+	troubleshootingHint := widget.NewLabel("Troubleshooting and display-scaling notes live in the repository guide.")
+	troubleshootingHint.Wrapping = fyne.TextWrapWord
 
-To fix:
-1. Right-click the PvFlasher icon in your shelf.
-2. Select 'Use low density' (or disable 'Display Scaling').
-3. Restart the app.
-
-This will force the app to render at native resolution (sharp).`
-
-	troubleshootingEntry := widget.NewMultiLineEntry()
-	troubleshootingEntry.SetText(troubleshootingText)
-	troubleshootingEntry.Disable() // Make read-only but copyable
-	troubleshootingEntry.TextStyle = fyne.TextStyle{Monospace: false}
-	troubleshootingEntry.Wrapping = fyne.TextWrapWord
-
-	smallTextInfo := `If the text is too small after fixing blurriness, try running the app from terminal with a scale factor:
-
-FYNE_SCALE=1.5 ./pvflasher`
-
-	smallTextEntry := widget.NewMultiLineEntry()
-	smallTextEntry.SetText(smallTextInfo)
-	smallTextEntry.Disable()
-	smallTextEntry.TextStyle = fyne.TextStyle{Monospace: true}
-	smallTextEntry.Wrapping = fyne.TextWrapWord
+	troubleshootingPath := widget.NewEntry()
+	troubleshootingPath.SetText("docs/TROUBLESHOOTING.md")
+	troubleshootingPath.Disable()
 
 	content := container.NewVBox(
 		widget.NewLabelWithStyle("Appearance", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		themeBtn,
 		util.SectionSpacer(10),
 		widget.NewLabelWithStyle("Troubleshooting", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		widget.NewLabelWithStyle("Blurry on Chromebook?", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		troubleshootingEntry,
-		util.SectionSpacer(10),
-		widget.NewLabelWithStyle("Interface too small?", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		smallTextEntry,
+		troubleshootingHint,
+		troubleshootingPath,
 	)
 
 	d := dialog.NewCustom("Settings", "Close", content, a.window)
-	d.Resize(fyne.NewSize(500, 550))
+	d.Resize(fyne.NewSize(460, 220))
 	d.Show()
 }
 

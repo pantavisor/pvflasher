@@ -151,6 +151,8 @@ func (c *ImageCard) createPantavisorTab() fyne.CanvasObject {
 
 	return container.NewVBox(
 		util.SectionSpacer(4),
+		util.DescriptionLabel("Browse Pantavisor images curated by Pantacor, or use the Local tab to flash any supported OS image or .bmap-backed image file."),
+		util.SectionSpacer(8),
 		util.InstructionLabel("Channel:"),
 		c.ChannelSelect,
 		util.SectionSpacer(4),

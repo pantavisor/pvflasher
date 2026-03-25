@@ -73,3 +73,29 @@ Error "download failed" when trying to flash a Pantavisor image.
 4.  **Corrupt Cache**: If a previous download was interrupted, the cached file might be corrupt. Try cleaning the cache directory:
     *   Linux/macOS: `rm -rf ~/.pvflasher/images/*`
     *   Windows: `del /q %USERPROFILE%\.pvflasher\images\*`
+
+## Blurry UI on Chromebook / ChromeOS Linux
+
+**Symptom:**
+The UI looks blurry or scaled incorrectly when running `pvflasher` inside the Linux environment on ChromeOS.
+
+**Solution:**
+1.  Right-click the `pvflasher` icon in the shelf.
+2.  Select `Use low density` or disable display scaling for the app.
+3.  Restart the application.
+
+This forces the app to render at native resolution instead of the blurry scaled mode.
+
+## Interface Too Small After Fixing Blur
+
+**Symptom:**
+After disabling ChromeOS scaling, the application becomes sharp but the text and controls are too small.
+
+**Solution:**
+Launch the app with an explicit Fyne scale factor:
+
+```bash
+FYNE_SCALE=1.5 ./pvflasher
+```
+
+Adjust the value to match your display density.
