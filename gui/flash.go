@@ -6,6 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -209,6 +212,11 @@ func (a *App) runElevatedFlash() {
 		args = append(args, "--no-eject")
 	}
 
+	if runtime.GOOS == "darwin" {
+		a.runElevatedFlashDarwin(args)
+		return
+	}
+
 	elevator := platform.NewElevator()
 	cmd, err := elevator.ElevateCommand(args...)
 	if err != nil {
@@ -237,47 +245,12 @@ func (a *App) runElevatedFlash() {
 	scanner := bufio.NewScanner(stdout)
 
 	for scanner.Scan() {
-		line := scanner.Text()
-		a.lastLogs = append(a.lastLogs, line)
-
-		if len(a.lastLogs) > 100 {
-			a.lastLogs = a.lastLogs[1:]
-		}
-
-		// Try to parse as progress JSON
-		var p struct {
-			Phase      string  `json:"phase"`
-			Processed  int64   `json:"processed"`
-			Total      int64   `json:"total"`
-			Percentage float64 `json:"percentage"`
-			Speed      float64 `json:"speed"`
-		}
-		if err := json.Unmarshal(scanner.Bytes(), &p); err == nil {
-			progress := flash.Progress{
-				Phase:          p.Phase,
-				BytesProcessed: p.Processed,
-				BytesTotal:     p.Total,
-				Percentage:     p.Percentage,
-				Speed:          p.Speed,
-			}
-			a.updateProgressUI(progress)
-		}
+		a.handleElevatedOutputLine(scanner.Text())
 	}
 
 	err = cmd.Wait()
 	if err == nil {
-		// Try to find the result JSON in the last logs
-		var result *flash.FlashResult
-		for i := len(a.lastLogs) - 1; i >= 0; i-- {
-			var r flash.FlashResult
-			if err := json.Unmarshal([]byte(a.lastLogs[i]), &r); err == nil {
-				if r.BytesWritten > 0 || r.Duration > 0 {
-					result = &r
-					break
-				}
-			}
-		}
-		a.handleFlashSuccess(result)
+		a.handleFlashSuccess(a.findFlashResultInLogs())
 		return
 	}
 
@@ -288,6 +261,167 @@ func (a *App) runElevatedFlash() {
 	} else {
 		a.handleFlashError(fmt.Errorf("operation failed: %v", err))
 	}
+}
+
+func (a *App) runElevatedFlashDarwin(args []string) {
+	logFile, err := os.CreateTemp("", "pvflasher-darwin-elevated-*.log")
+	if err != nil {
+		a.handleFlashError(err)
+		return
+	}
+	logPath := logFile.Name()
+	logFile.Close()
+	defer os.Remove(logPath)
+
+	cmd, err := darwinElevatedCommand(args, logPath)
+	if err != nil {
+		a.handleFlashError(err)
+		return
+	}
+
+	a.cmd = cmd
+	if err := cmd.Start(); err != nil {
+		a.handleFlashError(err)
+		return
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	processedLines := 0
+	for {
+		select {
+		case err := <-done:
+			processedLines = a.processElevatedLogFile(logPath, processedLines)
+			if err == nil {
+				a.handleFlashSuccess(a.findFlashResultInLogs())
+				return
+			}
+
+			if msg := a.lastNonJSONLogLine(); msg != "" {
+				a.handleFlashError(fmt.Errorf("%s", msg))
+			} else {
+				a.handleFlashError(fmt.Errorf("operation failed: %v", err))
+			}
+			return
+		case <-ticker.C:
+			processedLines = a.processElevatedLogFile(logPath, processedLines)
+		}
+	}
+}
+
+func darwinElevatedCommand(args []string, logPath string) (*exec.Cmd, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+
+	parts := []string{shellQuoteForShell(exe)}
+	for _, arg := range args {
+		parts = append(parts, shellQuoteForShell(arg))
+	}
+
+	commandLine := strings.Join(parts, " ") + " > " + shellQuoteForShell(logPath) + " 2>&1"
+	script := fmt.Sprintf("do shell script \"%s\" with administrator privileges", escapeAppleScriptString(commandLine))
+	return exec.Command("osascript", "-e", script), nil
+}
+
+func (a *App) processElevatedLogFile(path string, processedLines int) int {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return processedLines
+	}
+
+	content := string(data)
+	if content == "" {
+		return processedLines
+	}
+
+	lines := strings.Split(content, "\n")
+	if !strings.HasSuffix(content, "\n") {
+		lines = lines[:len(lines)-1]
+	}
+
+	if processedLines > len(lines) {
+		processedLines = 0
+	}
+
+	for _, line := range lines[processedLines:] {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		a.handleElevatedOutputLine(line)
+	}
+
+	return len(lines)
+}
+
+func (a *App) handleElevatedOutputLine(line string) {
+	a.lastLogs = append(a.lastLogs, line)
+	if len(a.lastLogs) > 100 {
+		a.lastLogs = a.lastLogs[1:]
+	}
+
+	var p struct {
+		Phase      string  `json:"phase"`
+		Processed  int64   `json:"processed"`
+		Total      int64   `json:"total"`
+		Percentage float64 `json:"percentage"`
+		Speed      float64 `json:"speed"`
+	}
+	if err := json.Unmarshal([]byte(line), &p); err == nil {
+		progress := flash.Progress{
+			Phase:          p.Phase,
+			BytesProcessed: p.Processed,
+			BytesTotal:     p.Total,
+			Percentage:     p.Percentage,
+			Speed:          p.Speed,
+		}
+		a.updateProgressUI(progress)
+	}
+}
+
+func (a *App) findFlashResultInLogs() *flash.FlashResult {
+	for i := len(a.lastLogs) - 1; i >= 0; i-- {
+		var r flash.FlashResult
+		if err := json.Unmarshal([]byte(a.lastLogs[i]), &r); err == nil {
+			if r.BytesWritten > 0 || r.Duration > 0 {
+				return &r
+			}
+		}
+	}
+	return nil
+}
+
+func (a *App) lastNonJSONLogLine() string {
+	for i := len(a.lastLogs) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(a.lastLogs[i])
+		if line == "" {
+			continue
+		}
+
+		var js json.RawMessage
+		if json.Unmarshal([]byte(line), &js) == nil {
+			continue
+		}
+		return line
+	}
+	return ""
+}
+
+func shellQuoteForShell(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+}
+
+func escapeAppleScriptString(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `"`, `\"`)
+	return value
 }
 
 // updateProgressUI sends progress updates to the channel for thread-safe UI updates

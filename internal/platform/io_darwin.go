@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -16,6 +17,8 @@ type DarwinDeviceWriter struct {
 }
 
 func openDevice(path string) (DeviceWriter, error) {
+	path = rawDevicePath(path)
+
 	// Use O_RDWR | O_EXLOCK if possible for exclusive access
 	f, err := os.OpenFile(path, os.O_RDWR, 0666)
 	if err != nil {
@@ -67,13 +70,28 @@ func (w *DarwinDeviceWriter) Fd() uintptr {
 // prepareDevice unmounts the disk on macOS before raw writing.
 func prepareDevice(path string) error {
 	// Use diskutil unmountDisk to unmount all volumes on the device
-	cmd := exec.Command("diskutil", "unmountDisk", path)
+	cmd := exec.Command("diskutil", "unmountDisk", diskutilPath(path))
 	return cmd.Run()
 }
 
 func ejectDevice(path string) error {
 	// Use diskutil unmountDisk and then eject
+	path = diskutilPath(path)
 	exec.Command("diskutil", "unmountDisk", path).Run()
 	cmd := exec.Command("diskutil", "eject", path)
 	return cmd.Run()
+}
+
+func rawDevicePath(path string) string {
+	if strings.HasPrefix(path, "/dev/disk") {
+		return strings.Replace(path, "/dev/disk", "/dev/rdisk", 1)
+	}
+	return path
+}
+
+func diskutilPath(path string) string {
+	if strings.HasPrefix(path, "/dev/rdisk") {
+		return strings.Replace(path, "/dev/rdisk", "/dev/disk", 1)
+	}
+	return path
 }
