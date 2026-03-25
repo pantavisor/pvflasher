@@ -135,6 +135,8 @@ Downloaded Pantavisor images are stored in a local cache directory. If you want 
 To clean the cache, simply delete the files inside these directories.
 
 ### Settings
-(Coming Soon)
-*   **Verification**: Toggle on/off.
-*   **Dark Mode**: Switch themes.
+
+The GUI includes a settings dialog accessible from the gear icon in the top-right corner.
+
+*   **Theme**: Switch between light and dark mode.
+*   **Troubleshooting Guide**: Open the online troubleshooting documentation from the settings dialog.

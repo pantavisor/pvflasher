@@ -78,6 +78,8 @@ pvflasher
 2.  **Select Device**: Choose the target USB drive from the list.
 3.  **Flash**: Click the flash button to start.
 
+Use the gear icon in the top-right corner to open settings and switch between light and dark mode.
+
 ### CLI
 
 The `pvflasher` CLI offers commands to copy images, create bmaps, list devices, and verify flashes.
