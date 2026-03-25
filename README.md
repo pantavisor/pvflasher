@@ -1,6 +1,6 @@
 # pvflasher
 
-**pvflasher** is a modern, cross-platform USB image flashing tool, inspired by `bmaptool`. It provides both a command-line interface (CLI) for automation and a graphical user interface (GUI) for ease of use.
+**pvflasher** is an open-source flashing tool from [Pantacor](https://pantacor.com/) for writing operating system images to removable media. It can flash generic OS images and `.bmap`-accelerated image layouts from any distribution, with built-in [Pantavisor](https://pantavisor.io/) image browsing in the GUI.
 
 <img src="Icon.png" alt="Logo" width="80">
 
@@ -11,10 +11,14 @@
 *   **Image Support**: Supports raw images (`.img`, `.iso`, `.wic`) and direct flashing from compressed archives (`.gz`, `.bz2`, `.xz`, `.zst`, `.zip`) without prior decompression.
 *   **Safety**: Built-in checks to prevent flashing to system drives or mounted devices (unless forced).
 *   **Verification**: Automatic SHA256/SHA512 checksum verification of written data.
-*   **Pantavisor Integration**: Browse and download the latest Pantavisor releases directly from the GUI.
+*   **Pantavisor Integration**: Browse and download Pantavisor images directly from the GUI.
 *   **Dual Interface**:
     *   **CLI**: Powerful command-line tool for scripts and power users.
-    *   **GUI**: Intuitive React-based desktop application.
+    *   **GUI**: Native desktop application built with Fyne.
+
+## Pantacor + Pantavisor
+
+**pvflasher** is another open-source project from [Pantacor](https://pantacor.com/). It is a general-purpose image flasher for removable media, and the GUI also includes a dedicated [Pantavisor](https://pantavisor.io/) flow so you can choose a release channel, version, and device profile, then download and flash that image in one place.
 
 ## 🪟 Windows Support
 
@@ -24,9 +28,9 @@
 *   **CLI**: Ensure you run your terminal (Command Prompt or PowerShell) as Administrator.
 *   **Device Paths**: On Windows, devices are identified as `\\.\PhysicalDriveN`. The CLI `list` command will help you identify the correct drive number.
 
-## ☁️ Pantavisor Releases
+## ☁️ Pantavisor Images
 
-The **pvflasher** GUI includes built-in support for downloading and flashing **Pantavisor** images. You can select from different channels (stable, beta, etc.), versions, and target devices directly within the application. The image is automatically downloaded, validated, and flashed to your USB drive.
+The **pvflasher** GUI includes built-in support for downloading and flashing **Pantavisor** images. You can select from different channels, versions, and target devices directly within the application. The image is automatically downloaded, validated, and flashed to your USB drive.
 
 Images are cached locally to avoid redundant downloads:
 *   **Linux/macOS**: `~/.pvflasher/images/`
