@@ -1,4 +1,25 @@
 
+<a name="v0.0.5"></a>
+## [v0.0.5](https://github.com/pantavisor/pvflasher/compare/v0.0.4...v0.0.5)
+
+> 2026-03-26
+
+### Feature
+
+* update install script with better error handling and color
+* add better styles to main view
+* add test
+* add better support to macosx
+* add branding
+* add system install and uninstall, and uninstall-local
+
+### Fix
+
+* align the footer
+* remote masos sdk links
+* documentation about the settings
+
+
 <a name="v0.0.4"></a>
 ## [v0.0.4](https://github.com/pantavisor/pvflasher/compare/v0.0.3...v0.0.4)
 
