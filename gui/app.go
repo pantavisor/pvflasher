@@ -137,14 +137,14 @@ func (a *App) buildMainView() {
 	// Create background rectangle
 	background := canvas.NewRectangle(util.CurrentBackgroundColor())
 
-	// Settings button
+	// Settings button with modern styling
 	settingsBtn := widget.NewButton("⚙️", func() {
 		a.showSettingsDialog()
 	})
 	settingsBtn.Importance = widget.LowImportance
 
-	// Title bar with settings button
-	titleBar := util.CreateTitleBarWithAction("⚡ PvFlasher", settingsBtn)
+	// Title bar with settings button - modern header
+	titleBar := createModernHeader("⚡ PvFlasher", "Flash OS images to removable media", settingsBtn)
 
 	logo := canvas.NewImageFromFile(pantacorLogoPath())
 	logo.FillMode = canvas.ImageFillContain
@@ -218,36 +218,36 @@ func (a *App) buildMainView() {
 	})
 	optionsCardUI := a.optionsCard.Build()
 
-	// Wrap each card with fixed width constraint
-	cardWidth := float32(280)
+	// Wrap each card with fixed width constraint - slightly wider for modern feel
+	cardWidth := float32(300)
 	wrapCard := func(card fyne.CanvasObject) fyne.CanvasObject {
 		spacer := canvas.NewRectangle(color.Transparent)
 		spacer.SetMinSize(fyne.NewSize(cardWidth, 0))
 		return container.NewStack(spacer, card)
 	}
 
-	// Use GridWithColumns to ensure all cards have equal height
+	// Use GridWithColumns to ensure all cards have equal height with modern spacing
 	cardsContainer := container.NewGridWithColumns(3,
 		wrapCard(imageCardUI),
 		wrapCard(deviceCardUI),
 		wrapCard(optionsCardUI),
 	)
 
-	// Center the cards container
+	// Center the cards container with modern spacing
 	centeredCards := container.NewCenter(cardsContainer)
 
 	// Constrain footer to match cards width and center it
 	footerSpacer := canvas.NewRectangle(color.Transparent)
-	footerSpacer.SetMinSize(fyne.NewSize(cardWidth*3+20, 0)) // 3 cards + gaps
+	footerSpacer.SetMinSize(fyne.NewSize(cardWidth*3+40, 0)) // 3 cards + gaps
 	centeredFooter := container.NewCenter(container.NewStack(footerSpacer, brandFooter))
 
-	// Main content with generous spacing
+	// Main content with modern generous spacing
 	contentBox := container.NewVBox(
-		util.SectionSpacer(24),
+		util.SectionSpacer(32),
 		centeredCards,
-		util.SectionSpacer(16),
-		centeredFooter,
 		util.SectionSpacer(24),
+		centeredFooter,
+		util.SectionSpacer(32),
 	)
 
 	// Make content scrollable
@@ -275,6 +275,46 @@ func mustParseURL(raw string) *url.URL {
 		panic(err)
 	}
 	return parsed
+}
+
+// createModernHeader creates a modern header with title, subtitle and action
+func createModernHeader(title, subtitle string, action fyne.CanvasObject) fyne.CanvasObject {
+	// Main title
+	titleText := canvas.NewText(title, util.CurrentTextColor())
+	titleText.TextSize = 28
+	titleText.TextStyle = fyne.TextStyle{Bold: true}
+	titleText.Alignment = fyne.TextAlignCenter
+
+	// Subtitle
+	subtitleText := canvas.NewText(subtitle, util.CurrentSecondaryTextColor())
+	subtitleText.TextSize = 14
+	subtitleText.Alignment = fyne.TextAlignCenter
+
+	// Title container
+	titleContainer := container.NewVBox(
+		container.NewCenter(titleText),
+		util.SectionSpacer(4),
+		container.NewCenter(subtitleText),
+	)
+
+	// Add padding around title
+	paddedTitle := container.NewPadded(titleContainer)
+
+	// Create header with optional action
+	var headerContent fyne.CanvasObject
+	if action != nil {
+		// Use Border layout with action on right
+		headerContent = container.NewBorder(
+			nil, nil,
+			nil,
+			container.NewPadded(action),
+			paddedTitle,
+		)
+	} else {
+		headerContent = paddedTitle
+	}
+
+	return headerContent
 }
 
 func pantacorLogoPath() string {
