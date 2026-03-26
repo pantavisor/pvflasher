@@ -236,12 +236,17 @@ func (a *App) buildMainView() {
 	// Center the cards container
 	centeredCards := container.NewCenter(cardsContainer)
 
+	// Constrain footer to match cards width and center it
+	footerSpacer := canvas.NewRectangle(color.Transparent)
+	footerSpacer.SetMinSize(fyne.NewSize(cardWidth*3+20, 0)) // 3 cards + gaps
+	centeredFooter := container.NewCenter(container.NewStack(footerSpacer, brandFooter))
+
 	// Main content with generous spacing
 	contentBox := container.NewVBox(
 		util.SectionSpacer(24),
 		centeredCards,
 		util.SectionSpacer(16),
-		brandFooter,
+		centeredFooter,
 		util.SectionSpacer(24),
 	)
 
