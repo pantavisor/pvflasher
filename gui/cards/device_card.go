@@ -2,12 +2,14 @@ package cards
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
 	"pvflasher/gui/util"
 	"pvflasher/internal/device"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 )
@@ -55,7 +57,7 @@ func (c *DeviceCard) Build() fyne.CanvasObject {
 		}
 	})
 
-	refreshButton := util.PrimaryButton("🔄 Refresh", func() {
+	refreshButton := util.PrimaryActionButton("Refresh Devices", func() {
 		c.RefreshDeviceList()
 	})
 
@@ -63,25 +65,27 @@ func (c *DeviceCard) Build() fyne.CanvasObject {
 
 	header := container.NewVBox(
 		stepLabel,
-		util.SectionSpacer(4),
+		util.SectionSpacer(6),
 		titleLabel,
-		util.SectionSpacer(4),
+		util.SectionSpacer(8),
 	)
 
-	warningBox := container.NewVBox(
-		util.ErrorBox("🚨 DESTRUCTIVE ACTION", "This operation will erase the selected device. Make sure you have selected the correct target!"),
-	)
+	// Modern warning box with better styling
+	warningBox := createModernWarningBox()
+
+	// Wrap device select with proper height
+	deviceSelectContainer := util.TallSelect(c.DeviceListSelect)
 
 	contentBox := container.NewVBox(
 		warningBox,
-		util.SectionSpacer(0),
+		util.SectionSpacer(16),
 		util.InstructionLabel("Selected Device:"),
-		util.SectionSpacer(4),
+		util.SectionSpacer(6),
 		c.SelectedDeviceLabel,
-		util.SectionSpacer(4),
+		util.SectionSpacer(16),
 		util.InstructionLabel("Available Devices:"),
-		util.SectionSpacer(4),
-		c.DeviceListSelect,
+		util.SectionSpacer(6),
+		deviceSelectContainer,
 	)
 
 	// Use border to place button at bottom with full width
@@ -125,6 +129,33 @@ func (c *DeviceCard) RefreshDeviceList() {
 }
 
 // isSystemDrive checks if any mount point indicates a system/boot drive
+// createModernWarningBox creates a styled warning box with modern design
+func createModernWarningBox() fyne.CanvasObject {
+	// Warning icon and text
+	titleLabel := canvas.NewText("⚠️  Destructive Action", util.ColorWarning)
+	titleLabel.TextSize = 13
+	titleLabel.TextStyle = fyne.TextStyle{Bold: true}
+
+	messageLabel := widget.NewLabel("This operation will erase the selected device. Make sure you have selected the correct target!")
+	messageLabel.Wrapping = fyne.TextWrapWord
+
+	content := container.NewVBox(
+		titleLabel,
+		util.SectionSpacer(6),
+		messageLabel,
+	)
+
+	// Add padding around content
+	paddedContent := container.NewPadded(content)
+
+	// Create a background with subtle warning tint
+	bg := canvas.NewRectangle(color.Transparent)
+	bg.StrokeColor = util.ColorWarning
+	bg.StrokeWidth = 1
+
+	return container.NewStack(bg, paddedContent)
+}
+
 func (c *DeviceCard) isSystemDrive(mountPoints []string) bool {
 	systemMounts := []string{"/", "/boot", "/boot/efi", "/home", "/usr", "/var", "/etc"}
 	for _, mp := range mountPoints {

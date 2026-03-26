@@ -60,7 +60,7 @@ func (c *ImageCard) Build() fyne.CanvasObject {
 	c.SelectedImageLabel = util.NewThemedLabelBold("No image selected")
 	c.bmapStatusLabel = util.NewColoredLabel("", util.CurrentSecondaryTextColor())
 
-	selectButton := util.PrimaryButton("📂 Browse Local File", func() {
+	selectButton := util.PrimaryActionButton("Browse Local File", func() {
 		fileDialog := dialog.NewFileOpen(func(uri fyne.URIReadCloser, err error) {
 			if err == nil && uri != nil {
 				path := uri.URI().Path()
@@ -80,23 +80,25 @@ func (c *ImageCard) Build() fyne.CanvasObject {
 	})
 
 	localFileContent := container.NewVBox(
-		util.SectionSpacer(12),
+		util.SectionSpacer(16),
 		util.InstructionLabel("Choose a disk image from your computer:"),
-		util.SectionSpacer(8),
+		util.SectionSpacer(12),
 		c.SelectedImageLabel,
 		c.bmapStatusLabel,
 	)
 
 	// --- Tab 2: Pantavisor Download ---
-	c.DownloadBtn = util.SuccessButton("✓ Select Image", c.selectPantavisorImage)
+	c.DownloadBtn = util.SuccessButton("Select Image", c.selectPantavisorImage)
 	c.DownloadBtn.Disable()
 	pvContent := c.createPantavisorTab()
 
-	// Create Tabs
+	// Create modern styled Tabs
 	tabs := container.NewAppTabs(
-		container.NewTabItem("📁 Local", localFileContent),
-		container.NewTabItem("☁️ Pantavisor", pvContent),
+		container.NewTabItem("Local", localFileContent),
+		container.NewTabItem("Pantavisor", pvContent),
 	)
+	// Modern tab styling - remove icon text for cleaner look
+	tabs.SetTabLocation(container.TabLocationTop)
 
 	// Footer for buttons to ensure alignment across cards
 	footer := container.NewStack(selectButton)
@@ -110,12 +112,12 @@ func (c *ImageCard) Build() fyne.CanvasObject {
 		footer.Refresh()
 	}
 
-	// Header section with step label and title
+	// Header section with step label and title - modern spacing
 	header := container.NewVBox(
 		stepLabel,
-		util.SectionSpacer(4),
+		util.SectionSpacer(6),
 		titleLabel,
-		util.SectionSpacer(4),
+		util.SectionSpacer(8),
 	)
 
 	// Use border layout - header at top, tabs in center, footer at bottom
@@ -131,7 +133,7 @@ func (c *ImageCard) Build() fyne.CanvasObject {
 }
 
 func (c *ImageCard) createPantavisorTab() fyne.CanvasObject {
-	// Initialize widgets
+	// Initialize widgets with modern placeholders
 	c.ChannelSelect = widget.NewSelect([]string{}, c.onChannelSelected)
 	c.ChannelSelect.PlaceHolder = "Select Channel"
 
@@ -149,19 +151,27 @@ func (c *ImageCard) createPantavisorTab() fyne.CanvasObject {
 	// Load data in background
 	go c.loadReleases()
 
+	// Create selects with proper height
+	channelSelect := util.TallSelect(c.ChannelSelect)
+	versionSelect := util.TallSelect(c.VersionSelect)
+	deviceSelect := util.TallSelect(c.DeviceSelect)
+
 	return container.NewVBox(
-		util.SectionSpacer(4),
-		util.DescriptionLabel("Browse Pantavisor images curated by Pantacor, or use the Local tab to flash any supported OS image or .bmap-backed image file."),
 		util.SectionSpacer(8),
+		util.DescriptionLabel("Browse Pantavisor images curated by Pantacor, or use the Local tab to flash any supported OS image."),
+		util.SectionSpacer(16),
 		util.InstructionLabel("Channel:"),
-		c.ChannelSelect,
 		util.SectionSpacer(4),
+		channelSelect,
+		util.SectionSpacer(12),
 		util.InstructionLabel("Version:"),
-		c.VersionSelect,
 		util.SectionSpacer(4),
+		versionSelect,
+		util.SectionSpacer(12),
 		util.InstructionLabel("Target Device:"),
-		c.DeviceSelect,
-		util.SectionSpacer(8),
+		util.SectionSpacer(4),
+		deviceSelect,
+		util.SectionSpacer(12),
 		c.DownloadStatus,
 	)
 }

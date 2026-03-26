@@ -240,7 +240,7 @@ func (t *AppTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 func (t *AppTheme) Size(name fyne.ThemeSizeName) float32 {
 	switch name {
 	case theme.SizeNamePadding:
-		return 8
+		return 16
 	case theme.SizeNameInlineIcon:
 		return 20
 	case theme.SizeNameScrollBar:
@@ -252,17 +252,17 @@ func (t *AppTheme) Size(name fyne.ThemeSizeName) float32 {
 	case theme.SizeNameText:
 		return 14
 	case theme.SizeNameHeadingText:
-		return 24
+		return 28
 	case theme.SizeNameSubHeadingText:
-		return 18
+		return 20
 	case theme.SizeNameCaptionText:
 		return 12
 	case theme.SizeNameInputBorder:
 		return 2
 	case theme.SizeNameInputRadius:
-		return 6
+		return 10
 	case theme.SizeNameSelectionRadius:
-		return 4
+		return 8
 	}
 	return theme.DefaultTheme().Size(name)
 }

@@ -11,41 +11,55 @@ import (
 
 // Color definitions for professional UI - Modern palette with high contrast
 var (
-	ColorPrimary       = color.NRGBA{R: 0x25, G: 0x63, B: 0xEB, A: 0xFF} // Vibrant blue
-	ColorSuccess       = color.NRGBA{R: 0x05, G: 0x9E, B: 0x69, A: 0xFF} // Deeper teal green
-	ColorWarning       = color.NRGBA{R: 0xD9, G: 0x77, B: 0x06, A: 0xFF} // Darker amber
-	ColorError         = color.NRGBA{R: 0xDC, G: 0x26, B: 0x26, A: 0xFF} // Darker red
-	ColorBackground    = color.NRGBA{R: 0xF3, G: 0xF4, B: 0xF6, A: 0xFF} // Subtle light gray
-	ColorBorder        = color.NRGBA{R: 0xD1, G: 0xD5, B: 0xDB, A: 0xFF} // Slightly darker border
-	ColorText          = color.NRGBA{R: 0x11, G: 0x18, B: 0x27, A: 0xFF} // Near-black text
-	ColorTextSecondary = color.NRGBA{R: 0x37, G: 0x41, B: 0x51, A: 0xFF} // Darker gray - improved contrast
-	ColorCardBg        = color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF} // White
-	ColorHeaderBg      = color.NRGBA{R: 0x1F, G: 0x2E, B: 0x3E, A: 0xFF} // Dark header
-	ColorDanger        = color.NRGBA{R: 0xB9, G: 0x1C, B: 0x1C, A: 0xFF} // Deep red for system drives
-	ColorDisabled      = color.NRGBA{R: 0x9C, G: 0xA3, B: 0xAF, A: 0xFF} // Gray for disabled state
+	ColorPrimary       = color.NRGBA{R: 0x3B, G: 0x82, B: 0xF6, A: 0xFF} // Modern blue - more vibrant
+	ColorPrimaryHover  = color.NRGBA{R: 0x60, G: 0xA5, B: 0xFA, A: 0xFF} // Lighter blue for hover
+	ColorPrimaryDark   = color.NRGBA{R: 0x1E, G: 0x40, B: 0xAF, A: 0xFF} // Darker blue for pressed
+	ColorSuccess       = color.NRGBA{R: 0x10, G: 0xB9, B: 0x81, A: 0xFF} // Modern teal green
+	ColorWarning       = color.NRGBA{R: 0xF5, G: 0x9E, B: 0x0B, A: 0xFF} // Warm amber
+	ColorError         = color.NRGBA{R: 0xEF, G: 0x44, B: 0x44, A: 0xFF} // Modern red
+	ColorBackground    = color.NRGBA{R: 0xF1, G: 0xF5, B: 0xF9, A: 0xFF} // Light gray-blue background
+	ColorBorder        = color.NRGBA{R: 0xD1, G: 0xD5, B: 0xDB, A: 0xFF} // Subtle gray border
+	ColorText          = color.NRGBA{R: 0x0F, G: 0x17, B: 0x2A, A: 0xFF} // Deep navy-black text
+	ColorTextSecondary = color.NRGBA{R: 0x47, G: 0x55, B: 0x69, A: 0xFF} // Slate gray
+	ColorCardBg        = color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF} // Pure white
+	ColorHeaderBg      = color.NRGBA{R: 0x0F, G: 0x17, B: 0x2A, A: 0xFF} // Deep navy header
+	ColorDanger        = color.NRGBA{R: 0xDC, G: 0x26, B: 0x26, A: 0xFF} // Bright danger red
+	ColorDisabled      = color.NRGBA{R: 0x94, G: 0xA3, B: 0xB8, A: 0xFF} // Muted gray
 
-	// Dark theme colors
-	ColorDarkBackground    = color.NRGBA{R: 0x1F, G: 0x21, B: 0x25, A: 0xFF} // Dark background
-	ColorDarkCardBg        = color.NRGBA{R: 0x2D, G: 0x2F, B: 0x34, A: 0xFF} // Dark card background
-	ColorDarkText          = color.NRGBA{R: 0xF3, G: 0xF4, B: 0xF6, A: 0xFF} // Light text for dark mode
-	ColorDarkTextSecondary = color.NRGBA{R: 0xA1, G: 0xA1, B: 0xAA, A: 0xFF} // Lighter secondary text
-	ColorDarkBorder        = color.NRGBA{R: 0x3F, G: 0x42, B: 0x49, A: 0xFF} // Subtle dark border
+	// Dark theme colors - refined for modern look
+	ColorDarkBackground    = color.NRGBA{R: 0x0F, G: 0x14, B: 0x1C, A: 0xFF} // Deep dark background
+	ColorDarkCardBg        = color.NRGBA{R: 0x1E, G: 0x24, B: 0x2E, A: 0xFF} // Elevated card surface
+	ColorDarkElevated      = color.NRGBA{R: 0x2D, G: 0x35, B: 0x42, A: 0xFF} // Higher elevation surface
+	ColorDarkText          = color.NRGBA{R: 0xF1, G: 0xF5, B: 0xF9, A: 0xFF} // Crisp white text
+	ColorDarkTextSecondary = color.NRGBA{R: 0x94, G: 0xA3, B: 0xB8, A: 0xFF} // Muted slate
+	ColorDarkBorder        = color.NRGBA{R: 0x33, G: 0x40, B: 0x4F, A: 0xFF} // Subtle dark border
+
+	// Shadow colors for elevation
+	ColorShadowLight  = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x08} // Very subtle shadow
+	ColorShadowMedium = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x12} // Medium shadow
+	ColorShadowDark   = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x20} // Dark shadow
 )
 
 const (
-	// Spacing constants
-	SpacingXS = 4.0
-	SpacingS  = 8.0
-	SpacingM  = 12.0
-	SpacingL  = 16.0
-	SpacingXL = 24.0
+	// Spacing constants - 8px grid system
+	SpacingXS  = 4.0
+	SpacingS   = 8.0
+	SpacingM   = 16.0
+	SpacingL   = 24.0
+	SpacingXL  = 32.0
+	Spacing2XL = 48.0
 
-	// Border radius for modern look
-	BorderRadiusCard   = 12.0
-	BorderRadiusButton = 8.0
+	// Border radius for modern look - larger, softer corners
+	BorderRadiusCard   = 16.0
+	BorderRadiusButton = 10.0
+	BorderRadiusSmall  = 8.0
+	BorderRadiusInput  = 8.0
 
-	// Shadow size
-	ShadowSize = 4.0
+	// Shadow elevation levels
+	ShadowSizeSm = 4.0
+	ShadowSizeMd = 8.0
+	ShadowSizeLg = 16.0
+	ShadowSizeXl = 24.0
 )
 
 // StyledCard creates a professional-looking card with border and padding
@@ -297,8 +311,27 @@ func ColoredText(text string, textColor color.Color) *canvas.Text {
 func LargeButton(label string, callback func()) *widget.Button {
 	btn := widget.NewButton(label, callback)
 	btn.Importance = widget.HighImportance
-	// Note: Fyne will render this with system theming
-	// The visual prominence comes from Importance flag
+	return btn
+}
+
+// PrimaryActionButton creates a primary action button with modern styling
+func PrimaryActionButton(label string, callback func()) *widget.Button {
+	btn := widget.NewButton(label, callback)
+	btn.Importance = widget.HighImportance
+	return btn
+}
+
+// SecondaryButton creates a secondary/outline button
+func SecondaryButton(label string, callback func()) *widget.Button {
+	btn := widget.NewButton(label, callback)
+	btn.Importance = widget.MediumImportance
+	return btn
+}
+
+// GhostButton creates a subtle button for less important actions
+func GhostButton(label string, callback func()) *widget.Button {
+	btn := widget.NewButton(label, callback)
+	btn.Importance = widget.LowImportance
 	return btn
 }
 
@@ -371,38 +404,70 @@ func ThemeToggleButton(app fyne.App, refreshCallback func()) *widget.Button {
 // StyledCardWithBorder creates a modern card with shadow, rounded corners effect
 // Uses theme-aware colors for proper light/dark mode support
 func StyledCardWithBorder(content fyne.CanvasObject) fyne.CanvasObject {
+	return StyledCardWithElevation(content, ShadowSizeMd)
+}
+
+// StyledCardWithElevation creates a card with specified elevation (shadow depth)
+func StyledCardWithElevation(content fyne.CanvasObject, elevation float32) fyne.CanvasObject {
 	// Create background using theme-aware color
 	bg := canvas.NewRectangle(CurrentCardBackground())
-
-	// Create subtle border using theme-aware color
-	borderColor := CurrentBorderColor()
 
 	// Create the main content with padding
 	paddedContent := container.NewPadded(content)
 
-	// Create thin border rectangles
-	topBorder := canvas.NewRectangle(borderColor)
-	topBorder.SetMinSize(fyne.NewSize(0, 1))
-	bottomBorder := canvas.NewRectangle(borderColor)
-	bottomBorder.SetMinSize(fyne.NewSize(0, 1))
-	leftBorder := canvas.NewRectangle(borderColor)
-	leftBorder.SetMinSize(fyne.NewSize(1, 0))
-	rightBorder := canvas.NewRectangle(borderColor)
-	rightBorder.SetMinSize(fyne.NewSize(1, 0))
+	// Build shadow layers based on elevation - only in dark mode
+	var allLayers []fyne.CanvasObject
+	allLayers = append(allLayers, bg)
 
-	// Stack: background + border + content
-	cardWithBorder := container.NewStack(
-		bg,
-		container.NewBorder(
-			topBorder,
-			bottomBorder,
-			leftBorder,
-			rightBorder,
-			paddedContent,
-		),
-	)
+	if GetTheme().IsDark() && elevation > 0 {
+		// Add shadow layers for depth in dark mode
+		for i := float32(1); i <= elevation; i++ {
+			shadowAlpha := uint8(255 * (0.05 + 0.02*i))
+			shadow := canvas.NewRectangle(color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: shadowAlpha})
+			shadow.SetMinSize(fyne.NewSize(0, 0))
+			allLayers = append(allLayers, shadow)
+		}
+	}
 
-	return cardWithBorder
+	// Add border for definition - use more visible border in light mode
+	borderColor := CurrentBorderColor()
+	borderRect := canvas.NewRectangle(color.Transparent)
+	borderRect.StrokeColor = borderColor
+	borderRect.StrokeWidth = 1
+
+	// Combine all layers
+	allLayers = append(allLayers, borderRect, paddedContent)
+	card := container.NewStack(allLayers...)
+
+	return card
+}
+
+// getShadowColorForElevation returns appropriate shadow color based on elevation
+func getShadowColorForElevation(elevation float32) color.Color {
+	if GetTheme().IsDark() {
+		alpha := uint8(255 * (0.2 + 0.1*elevation/ShadowSizeLg))
+		return color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: alpha}
+	}
+	alpha := uint8(255 * (0.08 + 0.04*elevation/ShadowSizeLg))
+	return color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: alpha}
+}
+
+// ModernCard creates a card with modern styling including subtle border, proper padding
+func ModernCard(content fyne.CanvasObject) fyne.CanvasObject {
+	return StyledCardWithElevation(content, ShadowSizeSm)
+}
+
+// TallSelect wraps a select widget with proper minimum height (36px) for modern styling
+func TallSelect(selectWidget *widget.Select) fyne.CanvasObject {
+	// Create a container with minimum height for the select
+	spacer := canvas.NewRectangle(color.Transparent)
+	spacer.SetMinSize(fyne.NewSize(0, 36))
+	return container.NewStack(spacer, selectWidget)
+}
+
+// ModernCardElevated creates a card with higher elevation for emphasis
+func ModernCardElevated(content fyne.CanvasObject) fyne.CanvasObject {
+	return StyledCardWithElevation(content, ShadowSizeMd)
 }
 
 // StyledCardWithBorderAndPadding creates a styled card with custom padding on all sides

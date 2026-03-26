@@ -39,62 +39,49 @@ func (c *OptionsCard) Build() fyne.CanvasObject {
 	stepLabel := util.StepLabel("STEP 3")
 	titleLabel := util.SubHeadingLabel("Flash Options & Summary")
 
-	// Use themed checkboxes with separate labels for better visibility
-	var forceContainer, verifyContainer, ejectContainer *fyne.Container
+	// Modern styled checkboxes with improved spacing
+	c.ForceCheck = widget.NewCheck("Force write (ignore mount warnings)", func(b bool) {
+		if c.callbacks.OnForceChanged != nil {
+			c.callbacks.OnForceChanged(b)
+		}
+	})
 
-	c.ForceCheck, forceContainer = util.ThemedCheckWithState(
-		"Force write (ignore mount warnings)",
-		false,
-		func(b bool) {
-			if c.callbacks.OnForceChanged != nil {
-				c.callbacks.OnForceChanged(b)
-			}
-		},
-	)
+	c.VerifyCheck = widget.NewCheck("Validate image after write", func(b bool) {
+		if c.callbacks.OnVerifyChanged != nil {
+			c.callbacks.OnVerifyChanged(b)
+		}
+	})
+	c.VerifyCheck.SetChecked(true)
 
-	c.VerifyCheck, verifyContainer = util.ThemedCheckWithState(
-		"Validate image after write",
-		true,
-		func(b bool) {
-			if c.callbacks.OnVerifyChanged != nil {
-				c.callbacks.OnVerifyChanged(b)
-			}
-		},
-	)
+	c.EjectCheck = widget.NewCheck("Eject device after completion", func(b bool) {
+		if c.callbacks.OnEjectChanged != nil {
+			c.callbacks.OnEjectChanged(b)
+		}
+	})
+	c.EjectCheck.SetChecked(true)
 
-	c.EjectCheck, ejectContainer = util.ThemedCheckWithState(
-		"Eject device after completion",
-		true,
-		func(b bool) {
-			if c.callbacks.OnEjectChanged != nil {
-				c.callbacks.OnEjectChanged(b)
-			}
-		},
-	)
-
-	c.FlashButton = util.LargeButton("START FLASH", func() {
+	c.FlashButton = util.PrimaryActionButton("Start Flash", func() {
 		if c.callbacks.OnStartFlash != nil {
 			c.callbacks.OnStartFlash()
 		}
 	})
-	c.FlashButton.Importance = widget.HighImportance
 	c.FlashButton.Disable()
 
 	header := container.NewVBox(
 		stepLabel,
-		util.SectionSpacer(4),
+		util.SectionSpacer(6),
 		titleLabel,
-		util.SectionSpacer(4),
+		util.SectionSpacer(8),
 	)
 
 	contentBox := container.NewVBox(
 		util.InstructionLabel("Options:"),
-		util.SectionSpacer(8),
-		forceContainer,
-		util.SectionSpacer(8),
-		verifyContainer,
-		util.SectionSpacer(8),
-		ejectContainer,
+		util.SectionSpacer(16),
+		c.ForceCheck,
+		util.SectionSpacer(12),
+		c.VerifyCheck,
+		util.SectionSpacer(12),
+		c.EjectCheck,
 	)
 
 	// Use border to place button at bottom with full width
