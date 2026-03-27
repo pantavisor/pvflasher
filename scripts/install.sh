@@ -431,17 +431,32 @@ elif [ "$OS" = "Darwin" ]; then
 	curl -fL -o "$ZIP_FILE" "$ZIP_URL" || error "Failed to download from $ZIP_URL"
 
 	info "Extracting..."
-	unzip -oqd "$BIN_DIR" "$ZIP_FILE" || error 'Failed to extract'
+	unzip -oqd "$EXTRACT_DIR" "$ZIP_FILE" || error 'Failed to extract'
 
-	# Handle nested directory structure from zip
-	if [ -f "$BIN_DIR/pvflasher-darwin-$FILE_ARCH/$BINARY_NAME" ]; then
-		mv "$BIN_DIR/pvflasher-darwin-$FILE_ARCH/$BINARY_NAME" "$BIN_DIR/$BINARY_NAME.tmp"
-		rm -rf "$BIN_DIR/pvflasher-darwin-$FILE_ARCH"
-		mv "$BIN_DIR/$BINARY_NAME.tmp" "$BIN_DIR/$BINARY_NAME"
+	SOURCE_EXE=""
+	for candidate in \
+		"$EXTRACT_DIR/$BINARY_NAME" \
+		"$EXTRACT_DIR/pvflasher-darwin-$FILE_ARCH/$BINARY_NAME" \
+		"$EXTRACT_DIR/$BINARY_NAME.app/Contents/MacOS/$BINARY_NAME" \
+		"$EXTRACT_DIR/pvflasher-darwin-$FILE_ARCH/$BINARY_NAME.app/Contents/MacOS/$BINARY_NAME"
+	do
+		if [ -f "$candidate" ]; then
+			SOURCE_EXE="$candidate"
+			break
+		fi
+	done
+
+	if [ -z "$SOURCE_EXE" ]; then
+		rm -f "$ZIP_FILE"
+		rm -rf "$EXTRACT_DIR"
+		error "Could not find $BINARY_NAME in the macOS archive"
 	fi
 
-	chmod +x "$EXE" || error 'Failed to set permissions'
+	cp "$SOURCE_EXE" "$EXE.tmp" || error 'Failed to install binary'
+	chmod +x "$EXE.tmp" || error 'Failed to set permissions'
+	mv "$EXE.tmp" "$EXE" || error 'Failed to finalize installation'
 	rm -f "$ZIP_FILE"
+	rm -rf "$EXTRACT_DIR"
 
 	# Helper to show ~ instead of $HOME
 	tildify() {
