@@ -33,6 +33,38 @@ success() {
 	echo -e "${Green}$*${Color_Off}"
 }
 
+require_command() {
+	local cmd="$1"
+	local message="$2"
+	command -v "$cmd" >/dev/null 2>&1 || error "$message"
+}
+
+sha256_file() {
+	shasum -a 256 "$1" | awk '{print $1}'
+}
+
+asset_digest() {
+	local asset_name="$1"
+	printf '%s' "$RELEASE_JSON" | jq -r --arg name "$asset_name" '.assets[] | select(.name == $name) | .digest' | head -n 1
+}
+
+verify_asset_digest() {
+	local file_path="$1"
+	local asset_name="$2"
+	local expected_digest
+	local actual_digest
+
+	expected_digest=$(asset_digest "$asset_name")
+	if [[ -z "$expected_digest" || "$expected_digest" == "null" ]]; then
+		error "Could not find published digest for release asset: $asset_name"
+	fi
+
+	actual_digest="sha256:$(sha256_file "$file_path")"
+	if [[ "$actual_digest" != "$expected_digest" ]]; then
+		error "Checksum mismatch for $asset_name. Expected $expected_digest but got $actual_digest"
+	fi
+}
+
 # Configuration
 PROJECT_NAME="pvflasher"
 BINARY_NAME="pvflasher"
@@ -274,15 +306,21 @@ if [ "$BUILD_FROM_SOURCE" = true ]; then
 fi
 
 # Check for required tools (for download mode)
-command -v unzip >/dev/null || error 'unzip is required to install pvflasher'
+require_command curl 'curl is required to install pvflasher'
+require_command unzip 'unzip is required to install pvflasher'
+require_command jq 'jq is required to install pvflasher. Please install jq and rerun this installer.'
+require_command shasum 'shasum is required to verify release downloads. Please install it and rerun this installer.'
 
 # Get version if not specified
 if [ -z "$VERSION" ]; then
 	info "Fetching latest release information..."
-	VERSION=$(curl -s "$API_URL/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')
+	RELEASE_JSON=$(curl -fsSL "$API_URL/releases/latest") || error "Failed to fetch latest release metadata"
+	VERSION=$(printf '%s' "$RELEASE_JSON" | jq -r '.tag_name')
+else
+	RELEASE_JSON=$(curl -fsSL "$API_URL/releases/tags/$VERSION") || error "Failed to fetch release metadata for $VERSION"
 fi
 
-if [ -z "$VERSION" ]; then
+if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
 	error "Could not determine version. Please check $REPO_URL"
 fi
 
@@ -333,6 +371,7 @@ if [ "$OS" = "Linux" ]; then
 		echo "Detected Arch Linux (pacman). Downloading $PKG_FILE..."
 		TMP_FILE=$(mktemp /tmp/pvflasher-XXXXXX.pkg.tar.zst)
 		curl -fL -o "$TMP_FILE" "$REPO_URL/releases/download/$VERSION/$PKG_FILE"
+		verify_asset_digest "$TMP_FILE" "$PKG_FILE"
 		echo "Installing (requires sudo)..."
 		sudo pacman -U --noconfirm "$TMP_FILE"
 		rm -f "$TMP_FILE"
@@ -342,6 +381,7 @@ if [ "$OS" = "Linux" ]; then
 		echo "Detected Debian/Ubuntu (apt). Downloading $PKG_FILE..."
 		TMP_FILE=$(mktemp /tmp/pvflasher-XXXXXX.deb)
 		curl -fL -o "$TMP_FILE" "$REPO_URL/releases/download/$VERSION/$PKG_FILE"
+		verify_asset_digest "$TMP_FILE" "$PKG_FILE"
 		echo "Installing (requires sudo)..."
 		sudo apt install -y "$TMP_FILE"
 		rm -f "$TMP_FILE"
@@ -351,6 +391,7 @@ if [ "$OS" = "Linux" ]; then
 		echo "Detected RPM-based distro ($PKG_MGR). Downloading $PKG_FILE..."
 		TMP_FILE=$(mktemp /tmp/pvflasher-XXXXXX.rpm)
 		curl -fL -o "$TMP_FILE" "$REPO_URL/releases/download/$VERSION/$PKG_FILE"
+		verify_asset_digest "$TMP_FILE" "$PKG_FILE"
 		echo "Installing (requires sudo)..."
 		sudo $PKG_MGR install -y "$TMP_FILE"
 		rm -f "$TMP_FILE"
@@ -371,6 +412,7 @@ if [ "$OS" = "Linux" ]; then
 		APPIMAGE_URL="$REPO_URL/releases/download/$VERSION/PvFlasher-$VERSION-$FILE_ARCH.AppImage"
 		echo "Downloading AppImage to $BIN_DIR/$BINARY_NAME..."
 		curl -fL -o "$BIN_DIR/$BINARY_NAME.tmp" "$APPIMAGE_URL"
+		verify_asset_digest "$BIN_DIR/$BINARY_NAME.tmp" "PvFlasher-$VERSION-$FILE_ARCH.AppImage"
 		chmod +x "$BIN_DIR/$BINARY_NAME.tmp"
 		mv -f "$BIN_DIR/$BINARY_NAME.tmp" "$BIN_DIR/$BINARY_NAME"
 
@@ -429,6 +471,7 @@ elif [ "$OS" = "Darwin" ]; then
 
 	info "Downloading..."
 	curl -fL -o "$ZIP_FILE" "$ZIP_URL" || error "Failed to download from $ZIP_URL"
+	verify_asset_digest "$ZIP_FILE" "pvflasher-darwin-$FILE_ARCH.zip"
 
 	info "Extracting..."
 	unzip -oqd "$EXTRACT_DIR" "$ZIP_FILE" || error 'Failed to extract'
