@@ -20,6 +20,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/widget"
 )
 
 // startFlash begins the flash operation
@@ -196,8 +197,8 @@ func (a *App) runInProcessFlash() {
 	}
 }
 
-// runElevatedFlash executes flash as elevated subprocess
-func (a *App) runElevatedFlash() {
+// buildFlashArgs constructs the command-line arguments for the flash subprocess
+func (a *App) buildFlashArgs() []string {
 	args := []string{"copy", a.selectedImage, a.selectedDevice, "--json"}
 	if a.bmapPath != "" {
 		args = append(args, "--bmap", a.bmapPath)
@@ -211,6 +212,12 @@ func (a *App) runElevatedFlash() {
 	if !a.ejectChecked {
 		args = append(args, "--no-eject")
 	}
+	return args
+}
+
+// runElevatedFlash executes flash as elevated subprocess
+func (a *App) runElevatedFlash() {
+	args := a.buildFlashArgs()
 
 	if runtime.GOOS == "darwin" {
 		a.runElevatedFlashDarwin(args)
@@ -234,6 +241,107 @@ func (a *App) runElevatedFlash() {
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
+
+	err = cmd.Start()
+	if err != nil {
+		// pkexec not found or failed to start — fall back to sudo
+		a.runSudoFlashWithPassword(args)
+		return
+	}
+
+	a.lastLogs = []string{}
+	scanner := bufio.NewScanner(stdout)
+
+	for scanner.Scan() {
+		a.handleElevatedOutputLine(scanner.Text())
+	}
+
+	err = cmd.Wait()
+	if err == nil {
+		a.handleFlashSuccess(a.findFlashResultInLogs())
+		return
+	}
+
+	stderrStr := strings.TrimSpace(stderr.String())
+
+	// Check if pkexec failed due to authentication issues (no agent, user cancelled, etc.)
+	// Exit 126 = user dismissed auth dialog, Exit 127 = no auth agent found
+	exitCode := -1
+	if cmd.ProcessState != nil {
+		exitCode = cmd.ProcessState.ExitCode()
+	}
+	isPkexecAuthFailure := exitCode == 126 || exitCode == 127 ||
+		strings.Contains(stderrStr, "authentication agent") ||
+		strings.Contains(stderrStr, "Not authorized") ||
+		strings.Contains(stderrStr, "dismissed")
+
+	if isPkexecAuthFailure {
+		// Fall back to sudo with password prompt
+		a.runSudoFlashWithPassword(args)
+		return
+	}
+
+	if stderrStr != "" {
+		a.lastLogs = append(a.lastLogs, "STDERR: "+stderrStr)
+		a.handleFlashError(fmt.Errorf("%s", stderrStr))
+	} else {
+		a.handleFlashError(fmt.Errorf("operation failed: %v", err))
+	}
+}
+
+// runSudoFlashWithPassword prompts for password via Fyne dialog and runs sudo -S
+func (a *App) runSudoFlashWithPassword(args []string) {
+	passwordChan := make(chan string, 1)
+
+	fyne.Do(func() {
+		entry := widget.NewPasswordEntry()
+		entry.SetPlaceHolder("Enter your password")
+		dialog.ShowForm("Administrator Password Required", "OK", "Cancel",
+			[]*widget.FormItem{
+				widget.NewFormItem("Password", entry),
+			},
+			func(confirmed bool) {
+				if confirmed {
+					passwordChan <- entry.Text
+				} else {
+					passwordChan <- ""
+				}
+			},
+			a.window,
+		)
+	})
+
+	password := <-passwordChan
+	if password == "" {
+		a.handleFlashError(fmt.Errorf("authentication cancelled"))
+		return
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		a.handleFlashError(err)
+		return
+	}
+	if appimagePath := os.Getenv("APPIMAGE"); appimagePath != "" {
+		exe = appimagePath
+	}
+
+	fullArgs := append([]string{"-S", exe}, args...)
+	cmd := exec.Command("sudo", fullArgs...)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		a.handleFlashError(err)
+		return
+	}
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	// Pipe password to sudo's stdin
+	cmd.Stdin = strings.NewReader(password + "\n")
+
+	a.cmd = cmd
 
 	err = cmd.Start()
 	if err != nil {

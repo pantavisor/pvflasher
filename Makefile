@@ -276,7 +276,9 @@ deps:
 
 package: package-appimage-amd64 package-deb-amd64 package-rpm-amd64 package-archlinux-amd64
 
-install: build
+install: build install-only
+
+install-only: bin/$(BINARY_NAME)
 	@echo "Installing pvflasher globally to $(PREFIX)..."
 	@mkdir -p $(DESTDIR)$(PREFIX)/bin
 	@mkdir -p $(DESTDIR)$(PREFIX)/share/applications
