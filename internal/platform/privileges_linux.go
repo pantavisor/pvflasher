@@ -17,6 +17,19 @@ func (e *LinuxElevator) IsAdmin() bool {
 	return os.Geteuid() == 0
 }
 
+// HasPolkitAgent checks if a graphical polkit authentication agent is available
+// by attempting a no-op pkexec call with the internal agent disabled.
+func HasPolkitAgent() bool {
+	if _, err := exec.LookPath("pkexec"); err != nil {
+		return false
+	}
+	// Try running a harmless command with --disable-internal-agent.
+	// If no graphical agent is registered, pkexec exits with 127.
+	cmd := exec.Command("pkexec", "--disable-internal-agent", "true")
+	err := cmd.Run()
+	return err == nil
+}
+
 func (e *LinuxElevator) ElevateCommand(args ...string) (*exec.Cmd, error) {
 	var exe string
 	var err error
@@ -35,8 +48,11 @@ func (e *LinuxElevator) ElevateCommand(args ...string) (*exec.Cmd, error) {
 
 	fullArgs := append([]string{exe}, args...)
 
+	// Prefer pkexec with --disable-internal-agent to avoid the textual agent
+	// failing in GUI apps that have no controlling terminal.
 	if _, err := exec.LookPath("pkexec"); err == nil {
-		return exec.Command("pkexec", fullArgs...), nil
+		pkexecArgs := append([]string{"--disable-internal-agent"}, fullArgs...)
+		return exec.Command("pkexec", pkexecArgs...), nil
 	}
 
 	return exec.Command("sudo", fullArgs...), nil

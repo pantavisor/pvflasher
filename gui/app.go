@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"pvflasher/assets"
 	"pvflasher/gui/cards"
 	"pvflasher/gui/pantavisor"
 	"pvflasher/gui/screens"
@@ -146,7 +147,7 @@ func (a *App) buildMainView() {
 	// Title bar with settings button - modern header
 	titleBar := createModernHeader("⚡ PvFlasher", "Flash OS images to removable media", settingsBtn)
 
-	logo := canvas.NewImageFromFile(pantacorLogoPath())
+	logo := canvas.NewImageFromResource(pantacorLogoResource())
 	logo.FillMode = canvas.ImageFillContain
 	logo.SetMinSize(fyne.NewSize(158, 36))
 
@@ -317,11 +318,11 @@ func createModernHeader(title, subtitle string, action fyne.CanvasObject) fyne.C
 	return headerContent
 }
 
-func pantacorLogoPath() string {
+func pantacorLogoResource() fyne.Resource {
 	if util.GetTheme().IsDark() {
-		return "assets/pantacor-logo-dark.svg"
+		return fyne.NewStaticResource("pantacor-logo-dark.svg", assets.PantacorLogoDarkSVG)
 	}
-	return "assets/pantacor-logo.svg"
+	return fyne.NewStaticResource("pantacor-logo.svg", assets.PantacorLogoSVG)
 }
 
 type footerLink struct {
