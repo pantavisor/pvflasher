@@ -39,6 +39,7 @@ func RegisterCommands(parent *cobra.Command) {
 	parent.AddCommand(verifyCmd)
 	parent.AddCommand(createCmd)
 	parent.AddCommand(installCmd)
+	parent.AddCommand(downloadCmd)
 }
 
 func Execute() {
