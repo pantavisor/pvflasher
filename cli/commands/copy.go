@@ -92,9 +92,17 @@ var copyCmd = &cobra.Command{
 					if bar != nil {
 						if bar.GetMax() == -1 && p.BytesTotal > 0 {
 							bar.ChangeMax64(p.BytesTotal)
+						} else if bar.GetMax() == -1 && p.SourceTotal > 0 {
+							bar.ChangeMax64(p.SourceTotal)
 						}
 						bar.Describe(p.Phase)
-						bar.Set64(p.BytesProcessed)
+						if p.BytesTotal > 0 {
+							bar.Set64(p.BytesProcessed)
+						} else if p.SourceTotal > 0 {
+							bar.Set64(p.SourceRead)
+						} else {
+							bar.Set64(p.BytesProcessed)
+						}
 					}
 				}
 			},

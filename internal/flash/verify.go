@@ -14,9 +14,10 @@ import (
 )
 
 type Verifier struct {
-	opts       Options
-	bm         *bmap.Bmap
-	imageEntry string
+	opts             Options
+	bm               *bmap.Bmap
+	imageEntry       string
+	decompressedSize int64
 }
 
 func NewVerifier(opts Options) *Verifier {
@@ -29,6 +30,10 @@ func (v *Verifier) SetBmap(bm *bmap.Bmap) {
 
 func (v *Verifier) SetImageEntry(entry string) {
 	v.imageEntry = entry
+}
+
+func (v *Verifier) SetDecompressedSize(size int64) {
+	v.decompressedSize = size
 }
 
 // Verify checks the device content against the bmap checksums
@@ -182,8 +187,15 @@ func (v *Verifier) verifyRaw(ctx context.Context) error {
 		}
 		cleanup = func() { imgFile.Close() }
 
-		fi, _ := imgFile.Stat()
-		totalBytes = fi.Size()
+		if image.IsCompressed(v.opts.ImagePath) {
+			// For compressed files, fi.Size() is the compressed size which doesn't
+			// match the decompressed bytes we'll be verifying. Use known decompressed
+			// size if available.
+			totalBytes = v.decompressedSize
+		} else {
+			fi, _ := imgFile.Stat()
+			totalBytes = fi.Size()
+		}
 
 		imgReader, err = image.Decompressor(v.opts.ImagePath, imgFile)
 		if err != nil {

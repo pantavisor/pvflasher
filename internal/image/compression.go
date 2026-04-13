@@ -11,6 +11,17 @@ import (
 	"github.com/ulikunitz/xz"
 )
 
+// IsCompressed returns true if the file path has a known compression extension
+func IsCompressed(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".gz", ".bz2", ".xz", ".zst", ".zstd":
+		return true
+	default:
+		return false
+	}
+}
+
 // Decompressor returns a reader that decompresses the source if needed
 func Decompressor(path string, r io.Reader) (io.Reader, error) {
 	ext := strings.ToLower(filepath.Ext(path))

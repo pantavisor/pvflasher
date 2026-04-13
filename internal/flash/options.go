@@ -8,6 +8,8 @@ type Progress struct {
 	BytesTotal     int64   `json:"total"`
 	Percentage     float64 `json:"percentage"`
 	Speed          float64 `json:"speed"`
+	SourceRead     int64   `json:"source_read"`
+	SourceTotal    int64   `json:"source_total"`
 }
 
 type ProgressCallback func(Progress)
