@@ -246,6 +246,8 @@ jobs:
     runs-on: macos-latest
     needs: test
     if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
+    env:
+      HAS_APPLE_SIGNING: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -279,7 +281,7 @@ jobs:
         run: CI=true make release-ci-darwin VERSION=${{ steps.version.outputs.version }}
 
       - name: Zip unsigned apps if no signing
-        if: ${{ secrets.APPLE_SIGNING_IDENTITY == '' }}
+        if: env.HAS_APPLE_SIGNING != 'true'
         run: |
           for dir in release/darwin/pvflasher-darwin-*/; do
             if [ -d "$dir" ]; then
@@ -293,14 +295,14 @@ jobs:
           done
 
       - name: Import Apple Certificate
-        if: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
+        if: env.HAS_APPLE_SIGNING == 'true'
         uses: apple-actions/import-codesign-certs@v2
         with:
           p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
           p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
       - name: Sign macOS app
-        if: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
+        if: env.HAS_APPLE_SIGNING == 'true'
         run: |
           for app in release/darwin/*.app; do
             if [ -d "$app" ]; then
@@ -312,7 +314,7 @@ jobs:
           done
 
       - name: Re-zip signed apps
-        if: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
+        if: env.HAS_APPLE_SIGNING == 'true'
         run: |
           cd release/darwin
           for dir in pvflasher-darwin-*/; do
