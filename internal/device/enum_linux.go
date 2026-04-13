@@ -31,12 +31,33 @@ func (m *LinuxManager) List() ([]Device, error) {
 
 	var devices []Device
 	for _, disk := range block.Disks {
+		// Skip loop devices
+		if strings.HasPrefix(disk.Name, "loop") {
+			continue
+		}
 		devName := "/dev/" + disk.Name
+
+		vendor := disk.Vendor
+		model := disk.Model
+
+		// ghw doesn't handle eMMC/mmcblk devices well — fall back to sysfs
+		if strings.HasPrefix(disk.Name, "mmcblk") {
+			if vendor == "unknown" || vendor == "" {
+				vendor = readSysfsAttr(disk.Name, "device/manfid")
+				if vendor == "" {
+					vendor = "MMC"
+				}
+			}
+			if model == "unknown" || model == "" {
+				model = readSysfsAttr(disk.Name, "device/name")
+			}
+		}
+
 		d := Device{
 			Name:        devName,
 			Size:        int64(disk.SizeBytes),
-			Model:       disk.Model,
-			Vendor:      disk.Vendor,
+			Model:       model,
+			Vendor:      vendor,
 			Removable:   disk.IsRemovable,
 			MountPoints: mounts[devName],
 		}
@@ -52,6 +73,16 @@ func (m *LinuxManager) List() ([]Device, error) {
 		devices = append(devices, d)
 	}
 	return devices, nil
+}
+
+// readSysfsAttr reads a sysfs attribute for a block device.
+func readSysfsAttr(diskName, attr string) string {
+	path := "/sys/block/" + diskName + "/" + attr
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 func getMounts() (map[string][]string, error) {
