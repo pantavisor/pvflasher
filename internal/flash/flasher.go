@@ -206,7 +206,13 @@ func (f *Flasher) Flash(ctx context.Context) (*FlashResult, error) {
 		}
 	} else {
 		// Raw copy (Full image)
-		totalBytes = sourceSize // Fallback
+		// For compressed images, sourceSize is the compressed size on disk,
+		// but writtenBytes will be the decompressed size. Use 0 to indicate unknown.
+		if image.IsCompressed(f.opts.ImagePath) {
+			totalBytes = 0
+		} else {
+			totalBytes = sourceSize
+		}
 
 		for {
 			if ctx.Err() != nil {
@@ -274,6 +280,7 @@ func (f *Flasher) Flash(ctx context.Context) (*FlashResult, error) {
 		if bm != nil {
 			v.SetBmap(bm)
 		}
+		v.SetDecompressedSize(writtenBytes)
 
 		if err := v.Verify(ctx); err != nil {
 			return nil, fmt.Errorf("verification failed: %w", err)
@@ -362,6 +369,8 @@ func (f *Flasher) reportProgress(written, total, sourceRead, sourceTotal int64, 
 			BytesTotal:     total,
 			Percentage:     percentage,
 			Speed:          speed,
+			SourceRead:     sourceRead,
+			SourceTotal:    sourceTotal,
 		})
 	}
 }

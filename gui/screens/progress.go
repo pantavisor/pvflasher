@@ -105,7 +105,13 @@ func (s *ProgressScreen) UpdateProgress(p flash.Progress) {
 		s.SpeedLabel.SetText("Speed: " + util.FormatSpeed(p.Speed))
 
 		// Update bytes label
-		s.BytesLabel.SetText(util.FormatBytes(p.BytesProcessed) + " / " + util.FormatBytes(p.BytesTotal))
+		if p.BytesTotal > 0 {
+			s.BytesLabel.SetText(util.FormatBytes(p.BytesProcessed) + " / " + util.FormatBytes(p.BytesTotal))
+		} else if p.SourceTotal > 0 {
+			s.BytesLabel.SetText(util.FormatBytes(p.BytesProcessed) + " written (" + util.FormatBytes(p.SourceRead) + " / " + util.FormatBytes(p.SourceTotal) + " read)")
+		} else {
+			s.BytesLabel.SetText(util.FormatBytes(p.BytesProcessed))
+		}
 	})
 }
 
