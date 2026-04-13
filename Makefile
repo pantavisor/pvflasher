@@ -105,9 +105,13 @@ package-darwin-native-%:
 	codesign --deep -f -s - $(BINARY_NAME).app
 	@mkdir -p release/darwin/$(BINARY_NAME)-darwin-$*
 	@mv $(BINARY_NAME).app release/darwin/$(BINARY_NAME)-darwin-$*/
+ifneq ($(CI),true)
 	@cd release/darwin && zip -X -r $(BINARY_NAME)-darwin-$*.zip $(BINARY_NAME)-darwin-$*
 	@rm -rf release/darwin/$(BINARY_NAME)-darwin-$*
 	@echo "Created release/darwin/$(BINARY_NAME)-darwin-$*.zip"
+else
+	@echo "CI build: leaving .app unscripted for signing step"
+endif
 
 # Host-based AppImage packaging (requires linuxdeploy and appimagetool on host)
 package-appimage-host-%: package-linux-%
