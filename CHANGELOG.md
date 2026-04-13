@@ -1,8 +1,41 @@
 
+<a name="v0.0.7"></a>
+## [v0.0.7](https://github.com/pantavisor/pvflasher/compare/v0.0.6...v0.0.7)
+
+> 2026-04-13
+
+### Feat
+
+* fix progress tracking and verification for compressed images
+* improve device enumeration for eMMC and loop devices
+* add download command to CLI
+* add macOS code signing and notarization to CI release workflow
+* export CLI commands for external integration
+
+
+<a name="v0.0.6"></a>
+## [v0.0.6](https://github.com/pantavisor/pvflasher/compare/v0.0.5...v0.0.6)
+
+> 2026-03-31
+
+### Feature
+
+* add sha256sum validation of the downloaded package
+
+### Fix
+
+* use embed assets instead of normal assets for the pantacor logo
+* make the darwin install to correctly get the binary
+
+
 <a name="v0.0.5"></a>
 ## [v0.0.5](https://github.com/pantavisor/pvflasher/compare/v0.0.4...v0.0.5)
 
 > 2026-03-26
+
+### Chore
+
+* update changelog for v0.0.5
 
 ### Feature
 
