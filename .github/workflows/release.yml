@@ -276,7 +276,53 @@ jobs:
           echo "Building version: $VERSION"
 
       - name: Build macOS release assets
-        run: make release-ci-darwin VERSION=${{ steps.version.outputs.version }}
+        run: CI=true make release-ci-darwin VERSION=${{ steps.version.outputs.version }}
+
+      - name: Zip unsigned apps if no signing
+        if: ${{ secrets.APPLE_SIGNING_IDENTITY == '' }}
+        run: |
+          for dir in release/darwin/pvflasher-darwin-*/; do
+            if [ -d "$dir" ]; then
+              name=$(basename "$dir")
+              if [ ! -f "${name}.zip" ]; then
+                cd release/darwin
+                zip -X -r "${name}.zip" "$name"
+                rm -rf "$name"
+              fi
+            fi
+          done
+
+      - name: Import Apple Certificate
+        if: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
+        uses: apple-actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Sign macOS app
+        if: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
+        run: |
+          for app in release/darwin/*.app; do
+            if [ -d "$app" ]; then
+              echo "Signing $app..."
+              codesign --deep --force --options runtime \
+                --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" \
+                --entitlements scripts/entitlements.plist "$app"
+            fi
+          done
+
+      - name: Re-zip signed apps
+        if: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
+        run: |
+          cd release/darwin
+          for dir in pvflasher-darwin-*/; do
+            if [ -d "$dir" ]; then
+              name=$(basename "$dir")
+              zip -X -r "${name}.zip" "$name"
+              rm -rf "$name"
+              echo "Re-zipped signed: ${name}.zip"
+            fi
+          done
 
       - name: Smoke test macOS binary
         run: |
