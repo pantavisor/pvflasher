@@ -283,11 +283,11 @@ jobs:
       - name: Zip unsigned apps if no signing
         if: env.HAS_APPLE_SIGNING != 'true'
         run: |
-          for dir in release/darwin/pvflasher-darwin-*/; do
+          cd release/darwin
+          for dir in pvflasher-darwin-*/; do
             if [ -d "$dir" ]; then
               name=$(basename "$dir")
               if [ ! -f "${name}.zip" ]; then
-                cd release/darwin
                 zip -X -r "${name}.zip" "$name"
                 rm -rf "$name"
               fi
