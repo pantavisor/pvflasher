@@ -86,24 +86,26 @@ func Decompressor(path string, r io.Reader) (io.Reader, error) {
 
 	magic, br := detectMagic(r)
 
+	// Strip leading dot for comparison: ".gz" → "gz", ".zstd" → "zstd".
+	extName := strings.TrimPrefix(ext, ".")
+
 	// Extension and magic agree — use the matching decompressor.
-	if magic == ext || (ext == ".gz" && magic == "gz") ||
-		(ext == ".zstd" && magic == "zstd") || (ext == ".zst" && magic == "zstd") {
+	if magic == extName || (extName == "zst" && magic == "zstd") || (extName == "zstd" && magic == "zstd") {
 		return newDecompressor(magic, br)
 	}
 
 	// Magic detected a DIFFERENT compression than the extension claims.
 	if magic != "" {
-		fmt.Printf("WARNING: %s has .%s extension but content is %s-compressed (detected by magic bytes); using %s decompressor\n",
-			filepath.Base(path), ext[1:], magic, magic)
+		fmt.Printf("WARNING: %s has %s extension but content is %s-compressed (detected by magic bytes); using %s decompressor\n",
+			filepath.Base(path), ext, magic, magic)
 		return newDecompressor(magic, br)
 	}
 
 	// Extension says compressed but content has no recognisable magic.
 	// Likely an uncompressed file with a wrong extension.
 	// Treat as raw/uncompressed so the caller can handle it.
-	fmt.Printf("WARNING: %s has .%s extension but content does not match any known compression format; treating as uncompressed\n",
-		filepath.Base(path), ext[1:])
+	fmt.Printf("WARNING: %s has %s extension but content does not match any known compression format; treating as uncompressed\n",
+		filepath.Base(path), ext)
 	return br, nil
 }
 
