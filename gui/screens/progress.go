@@ -2,7 +2,7 @@ package screens
 
 import (
 	"pvflasher/gui/util"
-	"pvflasher/internal/flash"
+	"pvflasher/pkg/flash"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"

@@ -11,7 +11,7 @@ import (
 	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 
-	"pvflasher/internal/flash"
+	"pvflasher/pkg/flash"
 	"pvflasher/internal/platform"
 )
 

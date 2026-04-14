@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"pvflasher/gui/pantavisor"
-	"pvflasher/internal/flash"
+	"pvflasher/pkg/flash"
 )
 
 func TestDownloadAndFlashIntegration(t *testing.T) {
