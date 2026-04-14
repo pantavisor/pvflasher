@@ -16,7 +16,7 @@ import (
 	"pvflasher/gui/pantavisor"
 	"pvflasher/gui/screens"
 	"pvflasher/gui/util"
-	"pvflasher/internal/flash"
+	"pvflasher/pkg/flash"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"

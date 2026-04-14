@@ -15,7 +15,7 @@ import (
 
 	"pvflasher/gui/pantavisor"
 	"pvflasher/internal/device"
-	"pvflasher/internal/flash"
+	"pvflasher/pkg/flash"
 	"pvflasher/internal/platform"
 )
 
