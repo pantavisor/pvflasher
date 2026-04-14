@@ -148,12 +148,20 @@ func TestDecompressor_ZstdAltExtension(t *testing.T) {
 }
 
 func TestDecompressor_GzipInvalidData(t *testing.T) {
-	// Invalid gzip data
+	// Invalid gzip data with .gz extension — magic-byte detection should
+	// recognise it's not actually gzip and fall back to raw reader instead
+	// of returning an error.
 	invalidData := []byte("This is not gzip data")
 
-	_, err := Decompressor("test.gz", bytes.NewReader(invalidData))
-	if err == nil {
-		t.Error("Expected error for invalid gzip data, got nil")
+	r, err := Decompressor("test.gz", bytes.NewReader(invalidData))
+	if err != nil {
+		t.Fatalf("Expected fallback to raw reader, got error: %v", err)
+	}
+
+	// The reader should return the original data unchanged.
+	out, _ := io.ReadAll(r)
+	if string(out) != string(invalidData) {
+		t.Errorf("Expected raw data passthrough, got %q", string(out))
 	}
 }
 
@@ -164,12 +172,18 @@ func TestDecompressor_ZstdInvalidData(t *testing.T) {
 }
 
 func TestDecompressor_XzInvalidData(t *testing.T) {
-	// Invalid xz data
+	// Invalid xz data with .xz extension — magic-byte detection should
+	// recognise it's not actually xz and fall back to raw reader.
 	invalidData := []byte("This is not xz data")
 
-	_, err := Decompressor("test.xz", bytes.NewReader(invalidData))
-	if err == nil {
-		t.Error("Expected error for invalid xz data, got nil")
+	r, err := Decompressor("test.xz", bytes.NewReader(invalidData))
+	if err != nil {
+		t.Fatalf("Expected fallback to raw reader, got error: %v", err)
+	}
+
+	out, _ := io.ReadAll(r)
+	if string(out) != string(invalidData) {
+		t.Errorf("Expected raw data passthrough, got %q", string(out))
 	}
 }
 
