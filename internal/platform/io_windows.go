@@ -62,15 +62,18 @@ func openDevice(path string) (DeviceWriter, error) {
 		return nil, err
 	}
 
-	// Open with FILE_FLAG_WRITE_THROUGH for reliability
-	// Note: FILE_FLAG_NO_BUFFERING requires sector-aligned I/O which can be problematic
+	// Open without FILE_FLAG_WRITE_THROUGH so the system can batch writes through
+	// its cache; we lock+dismount the volumes above and call FlushFileBuffers via
+	// Sync() before verification, which gives us durability without serializing
+	// every WriteFile on USB/SD media. FILE_FLAG_NO_BUFFERING would require
+	// sector-aligned buffers and offsets, so we avoid it too.
 	handle, err := windows.CreateFile(
 		pathPtr,
 		windows.GENERIC_READ|windows.GENERIC_WRITE,
 		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
 		nil,
 		windows.OPEN_EXISTING,
-		windows.FILE_FLAG_WRITE_THROUGH,
+		0,
 		0,
 	)
 	if err != nil {
