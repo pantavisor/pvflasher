@@ -1,8 +1,22 @@
 
+<a name="v0.0.8"></a>
+## [v0.0.8](https://github.com/pantavisor/pvflasher/compare/v0.0.7...v0.0.8)
+
+> 2026-05-12
+
+### Perf
+
+* increase flash/verify buffer to 4MB and drop write-through on Windows
+
+
 <a name="v0.0.7"></a>
 ## [v0.0.7](https://github.com/pantavisor/pvflasher/compare/v0.0.6...v0.0.7)
 
-> 2026-04-13
+> 2026-04-14
+
+### Chore
+
+* update changelog for v0.0.7
 
 ### Feat
 
@@ -11,6 +25,17 @@
 * add download command to CLI
 * add macOS code signing and notarization to CI release workflow
 * export CLI commands for external integration
+
+### Fix
+
+* move cd before loop in macOS zip step so all architectures get zipped
+* fix magic-byte vs extension comparison and update tests
+* detect compression format by magic bytes, not just file extension
+* use env var for secrets in workflow step-level if conditions
+
+### Refactor
+
+* move flash package from internal/ to pkg/ for library use
 
 
 <a name="v0.0.6"></a>
