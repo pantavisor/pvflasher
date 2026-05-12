@@ -74,7 +74,7 @@ func (v *Verifier) verifyWithBmap(ctx context.Context) error {
 	totalBytes := bm.MappedBlocksCount * int64(bm.BlockSize)
 	var verifiedBytes int64
 
-	bufSize := 1024 * 1024 // 1MB
+	bufSize := 4 * 1024 * 1024
 	buf := make([]byte, bufSize)
 
 	for _, rng := range bm.BlockMap {
@@ -208,7 +208,7 @@ func (v *Verifier) verifyRaw(ctx context.Context) error {
 	// 3. Compare Loop
 	startTime := time.Now()
 	var verifiedBytes int64
-	bufSize := 1024 * 1024
+	bufSize := 4 * 1024 * 1024
 	bufImg := make([]byte, bufSize)
 	bufDev := make([]byte, bufSize)
 

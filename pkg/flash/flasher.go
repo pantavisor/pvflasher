@@ -120,7 +120,7 @@ func (f *Flasher) Flash(ctx context.Context) (*FlashResult, error) {
 	var totalBytes int64
 	var writtenBytes int64
 
-	bufSize := 1024 * 1024 // 1MB buffer
+	bufSize := 4 * 1024 * 1024 // 4MB buffer — fewer syscalls, better throughput on USB/SD
 	buf := make([]byte, bufSize)
 
 	if bm != nil {
