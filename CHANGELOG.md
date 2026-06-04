@@ -1,8 +1,22 @@
 
+<a name="v0.0.9"></a>
+## [v0.0.9](https://github.com/pantavisor/pvflasher/compare/v0.0.8...v0.0.9)
+
+> 2026-06-03
+
+### Feature
+
+* use the new release.json schema
+
+
 <a name="v0.0.8"></a>
 ## [v0.0.8](https://github.com/pantavisor/pvflasher/compare/v0.0.7...v0.0.8)
 
 > 2026-05-12
+
+### Chore
+
+* update changelog for v0.0.8
 
 ### Perf
 
