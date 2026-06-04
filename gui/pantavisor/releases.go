@@ -1,6 +1,7 @@
 package pantavisor
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -65,6 +66,13 @@ type Artifact struct {
 	SHA256 string `json:"sha256"`
 }
 
+// Docs describes the documentation bundle for a release version.
+type Docs struct {
+	Name string `json:"name"`
+	Hash string `json:"hash"`
+	URL  string `json:"url"`
+}
+
 type DeviceRelease struct {
 	Name       string   `json:"name"`
 	FullImage  Artifact `json:"full_image"`
@@ -73,33 +81,79 @@ type DeviceRelease struct {
 	SDK        Artifact `json:"sdk,omitempty"`
 }
 
-// ReleaseWrapper handles the inconsistent JSON structure where a release
-// can be either a list of devices or an object containing a list of devices.
+// ReleaseWrapper handles the JSON structure for a release version. A version
+// can be either a bare list of devices or an object containing a list of
+// devices alongside metadata such as docs and a timestamp.
+//
+// The devices list itself may contain a trailing marker entry that carries
+// only a timestamp (e.g. {"timestamp": "..."}) instead of device data; such
+// entries are extracted into Timestamp rather than treated as devices.
 type ReleaseWrapper struct {
+	Docs      *Docs
 	Devices   []DeviceRelease
 	Timestamp string
 }
 
 func (rw *ReleaseWrapper) UnmarshalJSON(data []byte) error {
-	// Try unmarshalling as a list first
-	var list []DeviceRelease
-	if err := json.Unmarshal(data, &list); err == nil {
-		rw.Devices = list
-		return nil
+	// Bare list form: [device, device, ...].
+	if trimmed := bytes.TrimSpace(data); len(trimmed) > 0 && trimmed[0] == '[' {
+		return rw.parseDevices(data)
 	}
 
-	// Try unmarshalling as an object
+	// Object form: {docs, devices, timestamp/release-date}. A version may carry
+	// only docs (no devices), so a missing/empty devices list is not an error.
 	var obj struct {
-		Devices   []DeviceRelease `json:"devices"`
-		Timestamp string          `json:"timestamp"`
+		Docs        *Docs           `json:"docs"`
+		Devices     json.RawMessage `json:"devices"`
+		Timestamp   string          `json:"timestamp"`
+		ReleaseDate string          `json:"release-date"`
 	}
-	if err := json.Unmarshal(data, &obj); err == nil {
-		rw.Devices = obj.Devices
-		rw.Timestamp = obj.Timestamp
-		return nil
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return fmt.Errorf("failed to parse release: %w", err)
 	}
 
-	return fmt.Errorf("failed to parse release data")
+	rw.Docs = obj.Docs
+	rw.Timestamp = obj.Timestamp
+	if rw.Timestamp == "" {
+		rw.Timestamp = obj.ReleaseDate
+	}
+
+	if len(obj.Devices) == 0 || string(obj.Devices) == "null" {
+		return nil
+	}
+	return rw.parseDevices(obj.Devices)
+}
+
+// parseDevices parses a JSON array of device entries. Entries that carry only a
+// timestamp marker (no device name) are folded into rw.Timestamp; entries
+// without a name are otherwise skipped.
+func (rw *ReleaseWrapper) parseDevices(data []byte) error {
+	var raw []json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("failed to parse release devices: %w", err)
+	}
+
+	for _, item := range raw {
+		var marker struct {
+			Name      string `json:"name"`
+			Timestamp string `json:"timestamp"`
+		}
+		if err := json.Unmarshal(item, &marker); err == nil && marker.Name == "" {
+			if marker.Timestamp != "" && rw.Timestamp == "" {
+				rw.Timestamp = marker.Timestamp
+			}
+			// Nameless entry (timestamp marker or otherwise) — not a device.
+			continue
+		}
+
+		var dev DeviceRelease
+		if err := json.Unmarshal(item, &dev); err != nil {
+			return fmt.Errorf("failed to parse device: %w", err)
+		}
+		rw.Devices = append(rw.Devices, dev)
+	}
+
+	return nil
 }
 
 // Releases maps Channel -> Version -> Release Info
