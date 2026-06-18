@@ -2,13 +2,14 @@ package image
 
 import (
 	"bufio"
-	"compress/bzip2"
-	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
 
+	"github.com/cosnicolaou/pbzip2"
+	"github.com/klauspost/compress/gzip"
 	"github.com/klauspost/compress/zstd"
 	"github.com/ulikunitz/xz"
 )
@@ -115,7 +116,14 @@ func newDecompressor(format string, r io.Reader) (io.Reader, error) {
 	case "gz":
 		return gzip.NewReader(r)
 	case "bz2":
-		return bzip2.NewReader(r), nil
+		// Parallel pure-Go bzip2 decode. Go's stdlib compress/bzip2 is
+		// single-threaded and was the throughput cap (~9 MB/s vs ~20 MB/s device
+		// ceiling); pbzip2 decodes bz2 blocks across goroutines, like bmaptool's
+		// external pbzip2 but in-process and cgo-free (keeps Win/macOS portability).
+		// ponytail: context.Background() — on a mid-flash abort the decode workers
+		// leak until process exit (fine for the one-shot CLI). Thread ctx through
+		// Decompressor only if the long-lived GUI ever needs prompt cancellation.
+		return pbzip2.NewReader(context.Background(), r), nil
 	case "xz":
 		return xz.NewReader(r)
 	case "zstd":

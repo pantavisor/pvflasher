@@ -6,6 +6,7 @@ toolchain go1.24.12
 
 require (
 	fyne.io/fyne/v2 v2.7.2
+	github.com/cosnicolaou/pbzip2 v1.0.6
 	github.com/jaypipes/ghw v0.21.2
 	github.com/klauspost/compress v1.18.3
 	github.com/schollz/progressbar/v3 v3.19.0
