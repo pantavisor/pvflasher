@@ -1,8 +1,27 @@
 
+<a name="v0.0.10"></a>
+## [v0.0.10](https://github.com/pantavisor/pvflasher/compare/v0.0.9...v0.0.10)
+
+> 2026-06-18
+
+### Fix
+
+* animate sync/eject progress so the GUI isn't shown as stalled
+
+### Perf
+
+* use parallel pure-Go bzip2 and faster gzip decoder
+* overlap image decompression with device writes
+
+
 <a name="v0.0.9"></a>
 ## [v0.0.9](https://github.com/pantavisor/pvflasher/compare/v0.0.8...v0.0.9)
 
 > 2026-06-03
+
+### Chore
+
+* update changelog for v0.0.9
 
 ### Feature
 
