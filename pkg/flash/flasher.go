@@ -116,12 +116,17 @@ func (f *Flasher) Flash(ctx context.Context) (*FlashResult, error) {
 	seeker := image.NewForwardSeeker(imgReader)
 
 	// 4. Flash Loop
+	//
+	// Decompression (CPU-bound) and device writes (slow USB/SD/eMMC IO) run on
+	// separate goroutines via devicePipe so they overlap instead of alternating.
+	// This goroutine is the producer: it reads the decompressed stream and submits
+	// buffers tagged with their device offset; the pipe's consumer does the writes.
 	startTime := time.Now()
 	var totalBytes int64
 	var writtenBytes int64
 
-	bufSize := 4 * 1024 * 1024 // 4MB buffer — fewer syscalls, better throughput on USB/SD
-	buf := make([]byte, bufSize)
+	bufSize := 4 * 1024 * 1024 // 4MB buffers — fewer syscalls, better throughput on USB/SD
+	const numBufs = 4          // ~16MB read-ahead so decompress runs ahead of writes
 
 	if bm != nil {
 		// Bmap-optimized copy
@@ -137,14 +142,22 @@ func (f *Flasher) Flash(ctx context.Context) (*FlashResult, error) {
 			}
 		}
 
+		pipe := newDevicePipe(dev, numBufs, bufSize, func(written, sourceRead int64) {
+			f.reportProgress(written, totalBytes, sourceRead, sourceSize, startTime)
+		})
+
+		var readErr error
+	rangeLoop:
 		for _, rng := range bm.BlockMap {
 			if ctx.Err() != nil {
-				return nil, ctx.Err()
+				readErr = ctx.Err()
+				break
 			}
 
 			parsedRange, err := rng.Parse()
 			if err != nil {
-				return nil, err
+				readErr = err
+				break
 			}
 
 			startByte := parsedRange.Start * int64(bm.BlockSize)
@@ -155,25 +168,24 @@ func (f *Flasher) Flash(ctx context.Context) (*FlashResult, error) {
 				endByte = bm.ImageSize
 			}
 
-			countByte := endByte - startByte
-
-			// Seek to start in image
-			_, err = seeker.Seek(startByte, io.SeekStart)
-			if err != nil {
-				return nil, fmt.Errorf("failed to seek to block %d: %w", parsedRange.Start, err)
+			// Forward-seek the decompressed stream to the range start; gaps are
+			// decompressed and discarded (unavoidable for a non-seekable stream).
+			if _, err := seeker.Seek(startByte, io.SeekStart); err != nil {
+				readErr = fmt.Errorf("failed to seek to block %d: %w", parsedRange.Start, err)
+				break
 			}
 
-			// Seek device to start
-			_, err = dev.Seek(startByte, io.SeekStart)
-			if err != nil {
-				return nil, fmt.Errorf("failed to seek device to %d: %w", startByte, err)
-			}
-
-			// Copy loop for this range
-			remaining := countByte
+			off := startByte
+			remaining := endByte - startByte
 			for remaining > 0 {
 				if ctx.Err() != nil {
-					return nil, ctx.Err()
+					readErr = ctx.Err()
+					break rangeLoop
+				}
+
+				buf, ok := pipe.get()
+				if !ok {
+					break rangeLoop // consumer aborted; error reported by finish()
 				}
 
 				toRead := int64(len(buf))
@@ -183,65 +195,80 @@ func (f *Flasher) Flash(ctx context.Context) (*FlashResult, error) {
 
 				n, err := io.ReadFull(seeker, buf[:toRead])
 				if err != nil {
-					return nil, fmt.Errorf("read error at block %d: %w", parsedRange.Start, err)
+					readErr = fmt.Errorf("read error at block %d: %w", parsedRange.Start, err)
+					break rangeLoop
 				}
 
-				// Write all bytes, handling partial writes
-				written := 0
-				for written < n {
-					w, werr := dev.Write(buf[written:n])
-					if werr != nil {
-						return nil, fmt.Errorf("write error at block %d: %w", parsedRange.Start, werr)
-					}
-					if w == 0 {
-						return nil, fmt.Errorf("write returned 0 bytes at block %d", parsedRange.Start)
-					}
-					written += w
+				if !pipe.submit(off, buf[:n], counter.Count) {
+					break rangeLoop
 				}
-
+				off += int64(n)
 				remaining -= int64(n)
-				writtenBytes += int64(n)
-				f.reportProgress(writtenBytes, totalBytes, counter.Count, sourceSize, startTime)
 			}
+		}
+
+		var werr error
+		writtenBytes, werr = pipe.finish()
+		if readErr != nil {
+			return nil, readErr
+		}
+		if werr != nil {
+			return nil, fmt.Errorf("write error: %w", werr)
 		}
 	} else {
 		// Raw copy (Full image)
-		// For compressed images, sourceSize is the compressed size on disk,
-		// but writtenBytes will be the decompressed size. Use 0 to indicate unknown.
+		// For compressed images, sourceSize is the compressed size on disk, but
+		// writtenBytes will be the decompressed size, so progress is driven by
+		// compressed bytes read (counter) rather than written bytes.
 		if image.IsCompressed(f.opts.ImagePath) {
 			totalBytes = 0
 		} else {
 			totalBytes = sourceSize
 		}
 
+		pipe := newDevicePipe(dev, numBufs, bufSize, func(written, sourceRead int64) {
+			f.reportProgress(written, totalBytes, sourceRead, sourceSize, startTime)
+		})
+
+		var off int64
+		var readErr error
 		for {
 			if ctx.Err() != nil {
-				return nil, ctx.Err()
+				readErr = ctx.Err()
+				break
+			}
+
+			buf, ok := pipe.get()
+			if !ok {
+				break // consumer aborted; error reported by finish()
 			}
 
 			n, err := seeker.Read(buf)
 			if n > 0 {
-				// Write all bytes, handling partial writes
-				written := 0
-				for written < n {
-					w, werr := dev.Write(buf[written:n])
-					if werr != nil {
-						return nil, fmt.Errorf("write error at offset %d: %w", writtenBytes+int64(written), werr)
-					}
-					if w == 0 {
-						return nil, fmt.Errorf("write returned 0 bytes at offset %d", writtenBytes+int64(written))
-					}
-					written += w
+				if !pipe.submit(off, buf[:n], counter.Count) {
+					break
 				}
-				writtenBytes += int64(n)
-				f.reportProgress(writtenBytes, totalBytes, counter.Count, sourceSize, startTime)
+				off += int64(n)
+			} else {
+				pipe.recycle(buf)
 			}
+
 			if err == io.EOF {
 				break
 			}
 			if err != nil {
-				return nil, fmt.Errorf("read error: %w", err)
+				readErr = fmt.Errorf("read error: %w", err)
+				break
 			}
+		}
+
+		var werr error
+		writtenBytes, werr = pipe.finish()
+		if readErr != nil {
+			return nil, readErr
+		}
+		if werr != nil {
+			return nil, fmt.Errorf("write error: %w", werr)
 		}
 	}
 
