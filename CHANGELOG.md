@@ -1,8 +1,28 @@
 
+<a name="v0.0.11"></a>
+## [v0.0.11](https://github.com/pantavisor/pvflasher/compare/v0.0.10...v0.0.11)
+
+> 2026-09-23
+
+### Docs
+
+* add performance comparison and new screenshots
+
+### Feature
+
+* redesign the GUI for desktop use
+* use official Pantavisor release names and cancellable downloads
+* flag external drives and explain unsafe flash targets
+
+
 <a name="v0.0.10"></a>
 ## [v0.0.10](https://github.com/pantavisor/pvflasher/compare/v0.0.9...v0.0.10)
 
 > 2026-06-18
+
+### Chore
+
+* update changelog for v0.0.10
 
 ### Fix
 
