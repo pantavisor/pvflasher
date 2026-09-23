@@ -5,6 +5,7 @@ package device
 import (
 	"fmt"
 	"github.com/jaypipes/ghw"
+	"strings"
 )
 
 func newPlatformManager() Manager {
@@ -27,15 +28,17 @@ func (m *WindowsManager) List() ([]Device, error) {
 			Model:     disk.Model,
 			Vendor:    disk.Vendor,
 			Removable: disk.IsRemovable,
+			// WMI captions for USB-attached disks end in "USB Device".
+			External: disk.IsRemovable || strings.Contains(strings.ToLower(disk.Model), "usb"),
 		}
-		
+
 		// For Windows, ghw should handle basic mount point detection via partitions
 		for _, part := range disk.Partitions {
 			if part.MountPoint != "" {
 				d.MountPoints = append(d.MountPoints, part.MountPoint)
 			}
 		}
-		
+
 		devices = append(devices, d)
 	}
 	return devices, nil

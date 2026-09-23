@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/jaypipes/ghw"
@@ -59,6 +60,7 @@ func (m *LinuxManager) List() ([]Device, error) {
 			Model:       model,
 			Vendor:      vendor,
 			Removable:   disk.IsRemovable,
+			External:    disk.IsRemovable || isHotplugBus(disk.Name),
 			MountPoints: mounts[devName],
 		}
 
@@ -73,6 +75,17 @@ func (m *LinuxManager) List() ([]Device, error) {
 		devices = append(devices, d)
 	}
 	return devices, nil
+}
+
+// isHotplugBus reports whether a disk sits on a USB or SD/MMC bus, which is
+// where USB sticks, card readers and SD slots live even when the kernel does
+// not flag the media itself as removable.
+func isHotplugBus(diskName string) bool {
+	path, err := filepath.EvalSymlinks("/sys/block/" + diskName)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(path, "/usb") || strings.Contains(path, "/mmc_host/")
 }
 
 // readSysfsAttr reads a sysfs attribute for a block device.

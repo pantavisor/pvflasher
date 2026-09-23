@@ -7,6 +7,7 @@ type Device struct {
 	Model       string   `json:"model"`       // Device model
 	Vendor      string   `json:"vendor"`      // Device vendor
 	Removable   bool     `json:"removable"`   // Is removable
+	External    bool     `json:"external"`    // On a hot-pluggable bus (USB, SD/MMC, removable media)
 	MountPoints []string `json:"mountPoints"` // List of mount points
 }
 

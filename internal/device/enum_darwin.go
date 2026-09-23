@@ -77,6 +77,8 @@ func (m *DarwinManager) List() ([]Device, error) {
 			Model:     info.Model,
 			Vendor:    info.Vendor,
 			Removable: info.Removable,
+			// Internal non-removable disks were skipped above.
+			External: true,
 		}
 
 		if info.MountPoint != "" {
