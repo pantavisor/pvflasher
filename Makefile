@@ -89,18 +89,29 @@ release-ci-windows: package-windows-amd64 package-windows-arm64
 release-ci-darwin: package-darwin-native-amd64 package-darwin-native-arm64
 	@echo "macOS CI Artifacts available in release/darwin/"
 
+# Oldest macOS the app runs on (Go 1.24 supports macOS 11+). Without it the
+# binary inherits the runner's SDK version and won't open on older systems.
+MACOS_MIN ?= 11.0
+# Numeric version for the bundle's Info.plist (v1.2.3 -> 1.2.3; dev -> 0.0.0).
+APP_VERSION = $(shell echo "$(VERSION)" | sed -nE 's/^v?([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' | grep . || echo 0.0.0)
+
 # Native macOS packaging (no Docker required, for use on macOS hosts)
 package-darwin-native-%:
-	@echo "Building native macOS app for $*..."
+	@echo "Building native macOS app for $* (macOS $(MACOS_MIN)+, version $(APP_VERSION))..."
 	@mkdir -p release/darwin
 	GOARCH=$* CGO_ENABLED=1 \
+	MACOSX_DEPLOYMENT_TARGET=$(MACOS_MIN) \
+	CGO_CFLAGS="-mmacosx-version-min=$(MACOS_MIN)" \
+	CGO_LDFLAGS="-mmacosx-version-min=$(MACOS_MIN)" \
 	go build -o $(BINARY_NAME) -ldflags "$(LDFLAGS)" .
 	fyne package -os darwin \
 		-name $(BINARY_NAME) \
 		-icon Icon.png \
 		-appID com.pantacor.pvflasher \
+		-appVersion $(APP_VERSION) \
 		--executable $(BINARY_NAME)
 	@rm -f $(BINARY_NAME)
+	/usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $(MACOS_MIN)" $(BINARY_NAME).app/Contents/Info.plist
 	@echo "Ad-hoc signing $(BINARY_NAME).app..."
 	codesign --deep -f -s - $(BINARY_NAME).app
 	@mkdir -p release/darwin/$(BINARY_NAME)-darwin-$*

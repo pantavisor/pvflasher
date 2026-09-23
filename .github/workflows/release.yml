@@ -286,6 +286,16 @@ jobs:
       - name: Build macOS release assets
         run: CI=true make release-ci-darwin VERSION=${{ steps.version.outputs.version }}
 
+      # The app must open on older macOS, not just the runner's version.
+      - name: Check minimum macOS version
+        run: |
+          for bin in release/darwin/*/pvflasher.app/Contents/MacOS/pvflasher; do
+            minos=$(vtool -show-build "$bin" | awk '/minos/ {print $2}')
+            plist=$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "$(dirname "$bin")/../Info.plist")
+            echo "$bin: minos $minos, LSMinimumSystemVersion $plist"
+            [ "$minos" = "11.0" ] && [ "$plist" = "11.0" ] || { echo "::error::$bin requires macOS $minos"; exit 1; }
+          done
+
       - name: Zip unsigned apps if no signing
         if: env.HAS_APPLE_SIGNING != 'true'
         run: |
