@@ -14,6 +14,7 @@ import (
 	"pvflasher/gui/pantavisor"
 	"pvflasher/gui/screens"
 	"pvflasher/gui/util"
+	"pvflasher/internal/update"
 	"pvflasher/internal/version"
 	"pvflasher/pkg/flash"
 
@@ -88,6 +89,10 @@ type App struct {
 	themePref    string
 	themeApplied bool
 
+	// Self-update
+	pendingUpdate *update.Release
+	updateLink    *widget.Hyperlink
+
 	// Flash lifecycle
 	flashing         bool
 	cancelled        bool
@@ -134,6 +139,7 @@ func (a *App) Run() {
 
 	a.window.Resize(fyne.NewSize(920, 600))
 	a.window.CenterOnScreen()
+	a.maybeCheckForUpdates()
 	a.window.ShowAndRun()
 }
 
@@ -260,7 +266,14 @@ func (a *App) buildFooter() fyne.CanvasObject {
 	ver.Importance = widget.LowImportance
 	ver.SizeName = theme.SizeNameCaptionText
 
+	// Shown once an update is found; opens the update dialog.
+	a.updateLink = widget.NewHyperlink("", nil)
+	a.updateLink.OnTapped = a.showUpdateDialog
+	a.updateLink.TextStyle = fyne.TextStyle{Bold: true}
+	a.updateLink.Hide()
+
 	links := container.NewHBox(
+		a.updateLink,
 		widget.NewHyperlink("pantacor.com", mustParseURL("https://pantacor.com/")),
 		widget.NewHyperlink("pantavisor.io", mustParseURL("https://pantavisor.io/")),
 		ver,
@@ -515,8 +528,26 @@ func (a *App) showSettingsDialog() {
 	ver := widget.NewLabel("PvFlasher " + versionText())
 	ver.Importance = widget.LowImportance
 
+	config, _ := util.LoadConfig()
+	autoUpdate := widget.NewCheck("Check for updates automatically", func(on bool) {
+		c, _ := util.LoadConfig()
+		c.DisableUpdateCheck = !on
+		_ = util.SaveConfig(c)
+	})
+	autoUpdate.SetChecked(!config.DisableUpdateCheck)
+	checkNow := widget.NewButton("Check Now", func() { go a.checkForUpdates(true) })
+	updates := container.NewVBox(autoUpdate, container.NewHBox(checkNow))
+	if !update.IsReleaseVersion(version.Version) {
+		autoUpdate.Disable()
+		checkNow.Disable()
+		note := widget.NewLabel("Updates are off for development builds.")
+		note.Importance = widget.LowImportance
+		updates.Add(note)
+	}
+
 	form := widget.NewForm(
 		widget.NewFormItem("Appearance", appearance),
+		widget.NewFormItem("Updates", updates),
 		widget.NewFormItem("Help", help),
 	)
 	d := dialog.NewCustom("Settings", "Close", container.NewVBox(form, ver), a.window)

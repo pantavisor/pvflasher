@@ -4,11 +4,17 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // Config represents the application configuration
 type Config struct {
-	Theme string `json:"theme"` // "light" or "dark"
+	Theme string `json:"theme"` // "system", "light" or "dark"
+
+	// Updates: checked automatically unless disabled, at most once a day.
+	DisableUpdateCheck bool      `json:"disable_update_check,omitempty"`
+	LastUpdateCheck    time.Time `json:"last_update_check,omitzero"`
+	SkippedVersion     string    `json:"skipped_version,omitempty"`
 }
 
 // DefaultConfig returns the default configuration
