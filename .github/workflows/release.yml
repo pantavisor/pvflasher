@@ -68,6 +68,8 @@ jobs:
             echo "version=$VERSION" >> $GITHUB_OUTPUT
           fi
           echo "Building version: $VERSION"
+          # Embedded fallback: fyne-cross ignores the -X ldflags version.
+          echo "$VERSION" > internal/version/version.txt
 
       - name: Build Linux release assets
         env:
@@ -227,6 +229,8 @@ jobs:
             echo "version=$VERSION" >> $GITHUB_OUTPUT
           fi
           echo "Building version: $VERSION"
+          # Embedded fallback: fyne-cross ignores the -X ldflags version.
+          echo "$VERSION" > internal/version/version.txt
 
       - name: Build Windows release assets
         run: make release-ci-windows VERSION=${{ steps.version.outputs.version }}
@@ -276,6 +280,8 @@ jobs:
             echo "version=$VERSION" >> $GITHUB_OUTPUT
           fi
           echo "Building version: $VERSION"
+          # Embedded fallback: fyne-cross ignores the -X ldflags version.
+          echo "$VERSION" > internal/version/version.txt
 
       - name: Build macOS release assets
         run: CI=true make release-ci-darwin VERSION=${{ steps.version.outputs.version }}
