@@ -309,6 +309,7 @@ func Relaunch(inst Install) error {
 		cmd = exec.Command(inst.Path)
 	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = nil, nil, nil
+	markInheritedFDsCloseOnExec()
 	return cmd.Start()
 }
 
