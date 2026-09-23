@@ -1,8 +1,27 @@
 
+<a name="v1.0.0"></a>
+## [v1.0.0](https://github.com/pantavisor/pvflasher/compare/v0.0.11...v1.0.0)
+
+> 2026-09-23
+
+### Ci
+
+* sign update bundles and publish latest.json with each release
+
+### Feature
+
+* offer updates in the GUI and add 'pvflasher update'
+* add a signed, Tauri-style self-updater
+
+
 <a name="v0.0.11"></a>
 ## [v0.0.11](https://github.com/pantavisor/pvflasher/compare/v0.0.10...v0.0.11)
 
 > 2026-09-23
+
+### Chore
+
+* update changelog for v0.0.11
 
 ### Docs
 
