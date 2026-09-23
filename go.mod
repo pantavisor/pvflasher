@@ -5,6 +5,7 @@ go 1.24.0
 toolchain go1.24.12
 
 require (
+	aead.dev/minisign v0.3.0
 	fyne.io/fyne/v2 v2.7.2
 	github.com/cosnicolaou/pbzip2 v1.0.6
 	github.com/jaypipes/ghw v0.21.2
@@ -52,6 +53,7 @@ require (
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/yuin/goldmark v1.7.8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/term v0.29.0 // indirect
