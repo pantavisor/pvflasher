@@ -69,7 +69,8 @@ func FetchManifest(ctx context.Context, url string) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Accept", "application/json")
+	// No "Accept: application/json": GitHub's releases/latest/download
+	// redirect answers 404 to it.
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("checking for updates: %w", err)

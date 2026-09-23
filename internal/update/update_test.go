@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"aead.dev/minisign"
@@ -93,6 +94,11 @@ func newFixture(t *testing.T, signedFile, signedVersion string) *fixture {
 		"timestamp:1 file:"+signedFile+" version:"+signedVersion, "test"))
 
 	f.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// Like GitHub's release download redirect, which 404s JSON requests.
+		if strings.Contains(req.Header.Get("Accept"), "application/json") {
+			http.NotFound(w, req)
+			return
+		}
 		switch req.URL.Path {
 		case "/latest.json":
 			json.NewEncoder(w).Encode(Manifest{Version: "0.0.12", Platforms: map[string]Platform{
