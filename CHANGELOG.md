@@ -1,8 +1,22 @@
 
+<a name="v1.1.1"></a>
+## [v1.1.1](https://github.com/pantavisor/pvflasher/compare/v1.1.0...v1.1.1)
+
+> 2026-09-23
+
+### Fix
+
+* don't leak inherited descriptors into the relaunched app
+
+
 <a name="v1.1.0"></a>
 ## [v1.1.0](https://github.com/pantavisor/pvflasher/compare/v1.0.0...v1.1.0)
 
 > 2026-09-23
+
+### Chore
+
+* update changelog for v1.1.0
 
 ### Feature
 
