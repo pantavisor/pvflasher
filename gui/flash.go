@@ -8,51 +8,86 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
+	"pvflasher/gui/cards"
 	"pvflasher/gui/pantavisor"
 	"pvflasher/gui/util"
 	"pvflasher/internal/device"
-	"pvflasher/pkg/flash"
 	"pvflasher/internal/platform"
+	"pvflasher/pkg/flash"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 )
 
-// startFlash begins the flash operation
+// startFlash asks for confirmation, then begins the flash operation
 func (a *App) startFlash() error {
 	a.mu.Lock()
 	selectedDevice := a.selectedDevice
+	force := a.forceChecked
 	a.mu.Unlock()
 
-	// Check if device is mounted and needs confirmation
-	mountPoints := a.getDeviceMountPoints(selectedDevice)
-	if len(mountPoints) > 0 && !a.forceChecked {
-		// Show confirmation dialog for mounted device
-		mountList := strings.Join(mountPoints, ", ")
-		dialog.ShowConfirm(
-			"⚠️ Device is Mounted",
-			fmt.Sprintf("The selected device has mounted volumes:\n%s\n\nThese volumes will be unmounted before flashing. All data on this device will be permanently erased.\n\nDo you want to continue?", mountList),
-			func(confirmed bool) {
-				if confirmed {
-					// Set force flag and proceed
-					a.mu.Lock()
-					a.forceChecked = true
-					a.mu.Unlock()
-					a.proceedWithFlash()
-				}
-			},
-			a.window,
-		)
-		return nil
+	target := selectedDevice
+	if d, ok := a.deviceCard.SelectedDevice(); ok {
+		target = fmt.Sprintf("%s (%s, %s)", cards.DeviceTitle(d), d.Name, util.FormatBytes(d.Size))
 	}
 
-	a.proceedWithFlash()
+	msg := fmt.Sprintf("All data on %s will be permanently erased and replaced with %s.", target, a.jobImageName())
+	mountPoints := a.getDeviceMountPoints(selectedDevice)
+	if len(mountPoints) > 0 && !force {
+		msg += "\n\nThese volumes will be unmounted first:\n" + strings.Join(mountPoints, "\n")
+	}
+
+	d := dialog.NewConfirm("Erase Target?", msg, func(confirmed bool) {
+		if !confirmed {
+			return
+		}
+		a.mu.Lock()
+		a.unmountConfirmed = len(mountPoints) > 0
+		a.mu.Unlock()
+		a.proceedWithFlash()
+	}, a.window)
+	d.SetConfirmText("Erase and Flash")
+	d.SetDismissText("Cancel")
+	d.SetConfirmImportance(widget.DangerImportance)
+	d.Show()
 	return nil
+}
+
+// jobImageName is the short name of the selected image, for display.
+func (a *App) jobImageName() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.selectedRel != nil {
+		return a.selectedRel.Title() + " (Pantavisor)"
+	}
+	return filepath.Base(a.selectedImage)
+}
+
+// confirmCancel asks before aborting a running flash.
+func (a *App) confirmCancel() {
+	d := dialog.NewConfirm("Stop Flashing?",
+		"The target will be left incomplete and won't boot until it is flashed again.",
+		func(ok bool) {
+			if ok {
+				a.progressScreen.SetCancelling()
+				a.CancelFlash()
+			}
+		}, a.window)
+	d.SetConfirmText("Stop")
+	d.SetDismissText("Keep Flashing")
+	d.SetConfirmImportance(widget.DangerImportance)
+	d.Show()
+}
+
+// forceFlash reports whether mounted volumes may be unmounted without asking.
+func (a *App) forceFlash() bool {
+	return a.forceChecked || a.unmountConfirmed
 }
 
 // getDeviceMountPoints returns the mount points for a device
@@ -77,11 +112,16 @@ func (a *App) getDeviceMountPoints(devicePath string) []string {
 
 // proceedWithFlash continues with the flash operation after any confirmations
 func (a *App) proceedWithFlash() {
+	image := a.jobImageName()
 	a.mu.Lock()
 	needsDownload := a.selectedImage == "" && a.selectedRel != nil
 	rel := a.selectedRel
+	target := a.selectedDevice
+	a.flashing = true
+	a.cancelled = false
 	a.mu.Unlock()
 
+	a.progressScreen.Reset(image, target)
 	a.showProgressScreen()
 
 	if needsDownload {
@@ -106,7 +146,7 @@ func (a *App) proceedWithFlash() {
 func (a *App) downloadThenFlash(rel *pantavisor.DeviceRelease) {
 	// Update UI to show download phase
 	if a.progressScreen != nil {
-		a.progressScreen.SetPhase("Downloading image...")
+		a.progressScreen.SetPhase("Downloading image…")
 		a.progressScreen.SetProgress(0)
 	}
 
@@ -120,19 +160,23 @@ func (a *App) downloadThenFlash(rel *pantavisor.DeviceRelease) {
 	// Check if image is already cached and valid
 	if pantavisor.ValidateCachedFile(cachedPath, rel.FullImage.SHA256) {
 		if a.progressScreen != nil {
-			a.progressScreen.SetPhase("Using cached image...")
+			a.progressScreen.SetPhase("Using cached image…")
 		}
 	} else {
 		// Download the image
-		err = pantavisor.DownloadFileWithSHA(rel.FullImage.URL, cachedPath, rel.FullImage.SHA256, func(p pantavisor.DownloadProgress) {
+		ctx, cancel := context.WithCancel(context.Background())
+		a.mu.Lock()
+		a.cancel = cancel
+		a.mu.Unlock()
+		err = pantavisor.DownloadFileWithSHAContext(ctx, rel.FullImage.URL, cachedPath, rel.FullImage.SHA256, func(p pantavisor.DownloadProgress) {
 			fyne.Do(func() {
 				if a.progressScreen != nil {
 					a.progressScreen.SetProgress(p.Percentage / 100.0)
 					if p.Phase == "validating" {
-						a.progressScreen.SetPhase("Validating checksum...")
+						a.progressScreen.SetPhase("Verifying download…")
+						a.progressScreen.SetDetail("")
 					} else {
-						speedStr := util.FormatSpeed(p.Speed)
-						a.progressScreen.SetPhase(fmt.Sprintf("Downloading... %.1f%% (%s)", p.Percentage, speedStr))
+						a.progressScreen.SetDetail(fmt.Sprintf("%s · %s of %s", util.FormatSpeed(p.Speed), util.FormatBytes(p.Downloaded), util.FormatBytes(p.Total)))
 					}
 				}
 			})
@@ -150,6 +194,11 @@ func (a *App) downloadThenFlash(rel *pantavisor.DeviceRelease) {
 
 	// Set the downloaded image path
 	a.mu.Lock()
+	if a.cancelled {
+		a.mu.Unlock()
+		a.handleFlashError(context.Canceled)
+		return
+	}
 	a.selectedImage = cachedPath
 	a.bmapPath = a.CheckBmap(cachedPath)
 	a.mu.Unlock()
@@ -158,7 +207,8 @@ func (a *App) downloadThenFlash(rel *pantavisor.DeviceRelease) {
 	if a.progressScreen != nil {
 		fyne.Do(func() {
 			a.progressScreen.SetProgress(0)
-			a.progressScreen.SetPhase("Starting flash...")
+			a.progressScreen.SetPhase("Preparing…")
+			a.progressScreen.SetDetail("")
 		})
 	}
 
@@ -179,7 +229,7 @@ func (a *App) runInProcessFlash() {
 		ImagePath:  a.selectedImage,
 		DevicePath: a.selectedDevice,
 		BmapPath:   a.bmapPath,
-		Force:      a.forceChecked,
+		Force:      a.forceFlash(),
 		NoVerify:   !a.verifyChecked,
 		NoEject:    !a.ejectChecked,
 		ProgressCb: func(p flash.Progress) {
@@ -203,7 +253,7 @@ func (a *App) buildFlashArgs() []string {
 	if a.bmapPath != "" {
 		args = append(args, "--bmap", a.bmapPath)
 	}
-	if a.forceChecked {
+	if a.forceFlash() {
 		args = append(args, "--force")
 	}
 	if !a.verifyChecked {
@@ -590,6 +640,7 @@ func (a *App) progressListener() {
 func (a *App) handleFlashSuccess(result *flash.FlashResult) {
 	a.mu.Lock()
 	a.lastResult = result
+	a.flashing = false
 	// Close progress channel to signal listener to stop
 	if a.progressChan != nil {
 		close(a.progressChan)
@@ -609,6 +660,10 @@ func (a *App) handleFlashSuccess(result *flash.FlashResult) {
 func (a *App) handleFlashError(err error) {
 	a.mu.Lock()
 	a.lastError = err.Error()
+	if a.cancelled {
+		a.lastError = "Flashing was cancelled."
+	}
+	a.flashing = false
 	// Close progress channel to signal listener to stop
 	if a.progressChan != nil {
 		close(a.progressChan)
@@ -629,6 +684,7 @@ func (a *App) CancelFlash() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	a.cancelled = true
 	if a.cancel != nil {
 		a.cancel()
 	}

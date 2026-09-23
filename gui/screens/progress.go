@@ -1,12 +1,15 @@
 package screens
 
 import (
+	"strings"
+	"time"
+
 	"pvflasher/gui/util"
 	"pvflasher/pkg/flash"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -22,9 +25,11 @@ type ProgressScreen struct {
 	// Widgets
 	ProgressBar *widget.ProgressBar
 	InfiniteBar *widget.ProgressBarInfinite // shown during byte-less phases (e.g. syncing)
-	PhaseLabel  *util.ColoredLabel
-	SpeedLabel  *util.ColoredLabel
-	BytesLabel  *util.ColoredLabel
+	PhaseLabel  *widget.Label
+	JobLabel    *widget.Label
+	SpeedLabel  *widget.Label
+	BytesLabel  *widget.Label
+	CancelBtn   *widget.Button
 
 	// Content
 	content fyne.CanvasObject
@@ -39,58 +44,91 @@ func NewProgressScreen(callbacks ProgressScreenCallbacks) *ProgressScreen {
 
 // Build constructs and returns the screen UI
 func (s *ProgressScreen) Build() fyne.CanvasObject {
-	titleBar := util.CreateTitleBar("⚡ Flashing in Progress...")
+	s.PhaseLabel = widget.NewLabelWithStyle("Preparing…", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	s.PhaseLabel.SizeName = theme.SizeNameHeadingText
 
-	s.ProgressBar = util.StyledProgressBar()
+	s.JobLabel = widget.NewLabel("")
+	s.JobLabel.Importance = widget.LowImportance
+	s.JobLabel.Truncation = fyne.TextTruncateEllipsis
+
+	s.ProgressBar = widget.NewProgressBar()
 	s.InfiniteBar = widget.NewProgressBarInfinite()
 	s.InfiniteBar.Stop()
 	s.InfiniteBar.Hide()
-	s.PhaseLabel = util.NewThemedLabel("Starting...")
-	s.SpeedLabel = util.NewThemedLabel("Speed: 0 MB/s")
-	s.BytesLabel = util.NewThemedLabel("0 B / 0 B")
 
-	cancelButton := util.WarningButton("⏹️ Cancel Operation", func() {
+	s.SpeedLabel = widget.NewLabel("")
+	s.BytesLabel = widget.NewLabel("")
+	s.BytesLabel.Alignment = fyne.TextAlignTrailing
+
+	s.CancelBtn = widget.NewButtonWithIcon("Cancel", theme.CancelIcon(), func() {
 		if s.callbacks.OnCancel != nil {
 			s.callbacks.OnCancel()
 		}
 	})
 
-	progressCard := widget.NewCard("", "", container.NewVBox(
-		util.SubHeadingLabel("Transfer Progress"),
-		util.SectionSpacer(4),
-		s.ProgressBar,
-		s.InfiniteBar,
-	))
+	_, keepNotice := util.Notice(theme.NewPrimaryThemedResource(theme.InfoIcon()),
+		"Don't remove the target or close PvFlasher until flashing has finished.")
 
-	statusCard := widget.NewCard("", "", container.NewVBox(
-		util.SubHeadingLabel("Transfer Status"),
-		util.SectionSpacer(4),
+	panel := util.NewSurface(container.NewVBox(
 		s.PhaseLabel,
+		s.JobLabel,
+		util.SectionSpacer(8),
+		container.NewStack(s.ProgressBar, s.InfiniteBar),
+		container.NewGridWithColumns(2, s.SpeedLabel, s.BytesLabel),
 		util.SectionSpacer(4),
-		s.SpeedLabel,
-		util.SectionSpacer(4),
-		s.BytesLabel,
+		keepNotice,
 	))
 
-	// Create background
-	background := canvas.NewRectangle(util.CurrentBackgroundColor())
-
-	// Main content
-	contentBox := container.NewVBox(
-		titleBar,
-		progressCard,
-		statusCard,
-		util.SectionSpacer(12),
-		container.NewCenter(cancelButton),
-	)
-
-	// Stack background with content
-	s.content = container.NewStack(
-		background,
-		container.NewPadded(contentBox),
-	)
-
+	s.content = container.NewCenter(util.MinWidth(560, container.NewVBox(
+		panel,
+		util.SectionSpacer(8),
+		container.NewHBox(layoutSpacer(), s.CancelBtn),
+	)))
 	return s.content
+}
+
+// Reset prepares the screen for a new job.
+func (s *ProgressScreen) Reset(image, target string) {
+	fyne.Do(func() {
+		s.PhaseLabel.SetText("Preparing…")
+		s.JobLabel.SetText(image + "  →  " + target)
+		s.ProgressBar.SetValue(0)
+		s.InfiniteBar.Stop()
+		s.InfiniteBar.Hide()
+		s.ProgressBar.Show()
+		s.SpeedLabel.SetText("")
+		s.BytesLabel.SetText("")
+		s.CancelBtn.Enable()
+		s.CancelBtn.SetText("Cancel")
+	})
+}
+
+// SetCancelling shows that a cancel request is in flight.
+func (s *ProgressScreen) SetCancelling() {
+	fyne.Do(func() {
+		s.CancelBtn.Disable()
+		s.CancelBtn.SetText("Cancelling…")
+	})
+}
+
+// phaseTitle maps flasher phase identifiers to user-facing text.
+func phaseTitle(phase string) string {
+	switch phase {
+	case "starting":
+		return "Preparing…"
+	case "writing":
+		return "Writing image…"
+	case "verifying":
+		return "Verifying…"
+	case "syncing":
+		return "Finishing write…"
+	case "ejecting":
+		return "Ejecting…"
+	}
+	if phase == "" {
+		return "Working…"
+	}
+	return strings.ToUpper(phase[:1]) + phase[1:]
 }
 
 // indeterminatePhase reports the trailing, byte-less phases where a determinate
@@ -108,7 +146,7 @@ func indeterminatePhase(phase string) bool {
 // UpdateProgress updates the progress display
 func (s *ProgressScreen) UpdateProgress(p flash.Progress) {
 	fyne.Do(func() {
-		s.PhaseLabel.SetText(p.Phase)
+		s.PhaseLabel.SetText(phaseTitle(p.Phase))
 
 		if indeterminatePhase(p.Phase) {
 			// Animate so it's clearly alive even though there are no byte updates.
@@ -118,9 +156,9 @@ func (s *ProgressScreen) UpdateProgress(p flash.Progress) {
 				s.InfiniteBar.Start()
 			}
 			if p.Phase == "syncing" {
-				s.SpeedLabel.SetText("Flushing buffers to device… (this can take a while)")
+				s.SpeedLabel.SetText("Flushing buffers to the device — this can take a while")
 			} else {
-				s.SpeedLabel.SetText("Working…")
+				s.SpeedLabel.SetText("")
 			}
 			s.BytesLabel.SetText(util.FormatBytes(p.BytesProcessed) + " written")
 			return
@@ -139,15 +177,19 @@ func (s *ProgressScreen) UpdateProgress(p flash.Progress) {
 			s.ProgressBar.SetValue(p.Percentage / 100.0)
 		}
 
-		s.SpeedLabel.SetText("Speed: " + util.FormatSpeed(p.Speed))
+		speed := util.FormatSpeed(p.Speed)
+		if p.BytesTotal > 0 && p.Speed > 0 && p.BytesProcessed < p.BytesTotal {
+			eta := time.Duration(float64(p.BytesTotal-p.BytesProcessed)/p.Speed) * time.Second
+			speed += " · " + util.FormatDuration(eta.Round(time.Second)) + " left"
+		}
+		s.SpeedLabel.SetText(speed)
 
-		// Update bytes label
 		if p.BytesTotal > 0 {
-			s.BytesLabel.SetText(util.FormatBytes(p.BytesProcessed) + " / " + util.FormatBytes(p.BytesTotal))
+			s.BytesLabel.SetText(util.FormatBytes(p.BytesProcessed) + " of " + util.FormatBytes(p.BytesTotal))
 		} else if p.SourceTotal > 0 {
-			s.BytesLabel.SetText(util.FormatBytes(p.BytesProcessed) + " written (" + util.FormatBytes(p.SourceRead) + " / " + util.FormatBytes(p.SourceTotal) + " read)")
+			s.BytesLabel.SetText(util.FormatBytes(p.BytesProcessed) + " written · " + util.FormatBytes(p.SourceRead) + " of " + util.FormatBytes(p.SourceTotal) + " read")
 		} else {
-			s.BytesLabel.SetText(util.FormatBytes(p.BytesProcessed))
+			s.BytesLabel.SetText(util.FormatBytes(p.BytesProcessed) + " written")
 		}
 	})
 }
@@ -156,6 +198,13 @@ func (s *ProgressScreen) UpdateProgress(p flash.Progress) {
 func (s *ProgressScreen) SetPhase(phase string) {
 	fyne.Do(func() {
 		s.PhaseLabel.SetText(phase)
+	})
+}
+
+// SetDetail updates the secondary status line (e.g. download speed).
+func (s *ProgressScreen) SetDetail(detail string) {
+	fyne.Do(func() {
+		s.SpeedLabel.SetText(detail)
 	})
 }
 

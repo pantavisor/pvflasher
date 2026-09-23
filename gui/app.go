@@ -2,8 +2,6 @@ package gui
 
 import (
 	"context"
-	"fmt"
-	"image/color"
 	"net/url"
 	"os"
 	"os/exec"
@@ -16,6 +14,7 @@ import (
 	"pvflasher/gui/pantavisor"
 	"pvflasher/gui/screens"
 	"pvflasher/gui/util"
+	"pvflasher/internal/version"
 	"pvflasher/pkg/flash"
 
 	"fyne.io/fyne/v2"
@@ -77,6 +76,22 @@ type App struct {
 
 	// Pantavisor state
 	selectedRel *pantavisor.DeviceRelease
+
+	// Window chrome
+	body           *fyne.Container
+	logo           *canvas.Image
+	headerTitle    *canvas.Text
+	headerSubtitle *canvas.Text
+	settingsBtn    *widget.Button
+
+	// Theme preference: "system", "light" or "dark"
+	themePref    string
+	themeApplied bool
+
+	// Flash lifecycle
+	flashing         bool
+	cancelled        bool
+	unmountConfirmed bool
 }
 
 // NewApp creates a new Fyne app instance
@@ -90,114 +105,124 @@ func NewApp() *App {
 
 // Run starts the Fyne application
 func (a *App) Run() {
-	a.fyneApp = app.New()
+	a.fyneApp = app.NewWithID(AppID)
+	a.fyneApp.SetIcon(fyne.NewStaticResource("icon.png", assets.AppIconPNG))
 
-	// Load configuration
 	config, err := util.LoadConfig()
-	if err == nil {
-		if config.Theme == "dark" {
-			util.GetTheme().SetMode(util.ThemeModeDark)
-		} else if config.Theme == "light" {
-			util.GetTheme().SetMode(util.ThemeModeLight)
-		} else {
-			// System preference
-			if a.fyneApp.Settings().ThemeVariant() == theme.VariantDark {
-				util.GetTheme().SetMode(util.ThemeModeDark)
-			} else {
-				util.GetTheme().SetMode(util.ThemeModeLight)
-			}
-		}
-	} else {
-		// Fallback to system preference if config load fails
-		if a.fyneApp.Settings().ThemeVariant() == theme.VariantDark {
-			util.GetTheme().SetMode(util.ThemeModeDark)
-		} else {
-			util.GetTheme().SetMode(util.ThemeModeLight)
-		}
+	if err != nil {
+		config = util.DefaultConfig()
 	}
+	a.themePref = config.Theme
+	a.applyTheme()
+	// Follow the desktop's light/dark switch while the preference is "system".
+	a.fyneApp.Settings().AddListener(func(fyne.Settings) { a.applyTheme() })
 
-	a.fyneApp.Settings().SetTheme(util.GetTheme())
+	a.window = a.fyneApp.NewWindow("PvFlasher")
+	a.window.SetMaster()
 
-	a.window = a.fyneApp.NewWindow("PvFlasher | Pantacor")
-	a.window.Resize(fyne.NewSize(950, 650))
-	a.window.CenterOnScreen()
-
-	// Build all views
 	a.buildMainView()
 	a.buildProgressScreen()
 	a.buildSuccessScreen()
 	a.buildErrorScreen()
 
-	// Set the main view as the content
-	a.window.SetContent(a.mainContent)
+	a.body = container.NewStack()
+	a.window.SetContent(container.NewBorder(a.buildHeader(), nil, nil, nil, a.body))
+	a.showMainView()
+
+	a.window.SetOnDropped(a.onDropped)
+	a.window.SetCloseIntercept(a.onCloseRequested)
+
+	a.window.Resize(fyne.NewSize(920, 600))
+	a.window.CenterOnScreen()
 	a.window.ShowAndRun()
+}
+
+// AppID is the reverse-DNS application identifier. It becomes the Wayland
+// app_id / X11 WM_CLASS, which desktops use to match the window to its
+// .desktop launcher, icon and taskbar entry.
+const AppID = "com.pantacor.pvflasher"
+
+// applyTheme resolves the light/dark preference and applies it if it changed.
+func (a *App) applyTheme() {
+	mode := util.ThemeModeLight
+	switch a.themePref {
+	case "dark":
+		mode = util.ThemeModeDark
+	case "light":
+	default:
+		if a.fyneApp.Settings().ThemeVariant() == theme.VariantDark {
+			mode = util.ThemeModeDark
+		}
+	}
+	t := util.GetTheme()
+	if a.themeApplied && t.Mode() == mode {
+		return
+	}
+	a.themeApplied = true
+	t.SetMode(mode)
+	a.fyneApp.Settings().SetTheme(t)
+	if a.logo != nil {
+		a.logo.Resource = pantacorLogoResource()
+		a.logo.Refresh()
+	}
+	if a.headerTitle != nil {
+		a.headerTitle.Color = util.CurrentTextColor()
+		a.headerTitle.Refresh()
+		a.headerSubtitle.Color = util.CurrentSecondaryTextColor()
+		a.headerSubtitle.Refresh()
+	}
+}
+
+// setScreen swaps the window body below the header.
+func (a *App) setScreen(content fyne.CanvasObject) {
+	a.body.Objects = []fyne.CanvasObject{content}
+	a.body.Refresh()
+}
+
+// buildHeader builds the app bar shown above every screen.
+func (a *App) buildHeader() fyne.CanvasObject {
+	_, icon := util.BigIcon(fyne.NewStaticResource("icon.png", assets.AppIconPNG), 32)
+
+	// canvas.Text avoids the label padding so the two lines sit tight together;
+	// applyTheme keeps their colours in sync with the theme.
+	a.headerTitle = canvas.NewText("PvFlasher", util.CurrentTextColor())
+	a.headerTitle.TextSize = 17
+	a.headerTitle.TextStyle = fyne.TextStyle{Bold: true}
+	a.headerSubtitle = canvas.NewText("Write OS images to SD cards and USB drives", util.CurrentSecondaryTextColor())
+	a.headerSubtitle.TextSize = 12
+	text := container.New(layout.NewCustomPaddedVBoxLayout(2), a.headerTitle, a.headerSubtitle)
+
+	a.settingsBtn = widget.NewButtonWithIcon("", theme.SettingsIcon(), a.showSettingsDialog)
+	a.settingsBtn.Importance = widget.LowImportance
+
+	bar := container.NewBorder(nil, nil,
+		container.NewHBox(container.NewCenter(icon), util.HorizontalSpacer(4), container.NewCenter(text)),
+		container.NewCenter(a.settingsBtn),
+	)
+	return container.NewVBox(util.Inset(8, bar), widget.NewSeparator())
 }
 
 // buildMainView builds the main selection view
 func (a *App) buildMainView() {
-	// Create background rectangle
-	background := canvas.NewRectangle(util.CurrentBackgroundColor())
-
-	// Settings button with modern styling
-	settingsBtn := widget.NewButton("⚙️", func() {
-		a.showSettingsDialog()
-	})
-	settingsBtn.Importance = widget.LowImportance
-
-	// Title bar with settings button - modern header
-	titleBar := createModernHeader("⚡ PvFlasher", "Flash OS images to removable media", settingsBtn)
-
-	logo := canvas.NewImageFromResource(pantacorLogoResource())
-	logo.FillMode = canvas.ImageFillContain
-	logo.SetMinSize(fyne.NewSize(158, 36))
-
-	slogan := widget.NewLabel("Built with love as a tool for Pantavisor and any other OS image.")
-	slogan.Wrapping = fyne.TextWrapWord
-	slogan.Alignment = fyne.TextAlignCenter
-
-	brandLinks := container.NewHBox(
-		layout.NewSpacer(),
-		newFooterLink("pantacor.com", "https://pantacor.com/"),
-		widget.NewLabel("•"),
-		newFooterLink("pantavisor.io", "https://pantavisor.io/"),
-		layout.NewSpacer(),
-	)
-
-	centerContent := container.NewVBox(
-		slogan,
-		util.SectionSpacer(2),
-		brandLinks,
-	)
-
-	footerContent := container.NewBorder(
-		nil,
-		nil,
-		logo,
-		nil,
-		container.NewPadded(centerContent),
-	)
-
-	brandFooter := util.StyledCardWithBorder(footerContent)
-
-	// Step 1: Image Selection Card
 	a.imageCard = cards.NewImageCard(a.window, cards.ImageCardCallbacks{
 		OnLocalImageSelected: func(path string) {
-			a.SetSelectedImage(path)
+			a.mu.Lock()
+			a.selectedImage = path
 			a.selectedRel = nil // Clear any Pantavisor selection
+			a.mu.Unlock()
 			a.updateFlashButtonState()
 		},
 		OnPantavisorSelected: func(rel *pantavisor.DeviceRelease) {
 			a.mu.Lock()
 			a.selectedRel = rel
 			a.selectedImage = "" // Clear local image
+			a.bmapPath = ""
 			a.mu.Unlock()
 			a.updateFlashButtonState()
 		},
 		CheckBmapStatus: a.checkBmapStatus,
 	})
-	imageCardUI := a.imageCard.Build()
 
-	// Step 2: Device Selection Card
 	a.deviceCard = cards.NewDeviceCard(a.window, cards.DeviceCardCallbacks{
 		OnDeviceSelected: func(devicePath string) {
 			a.SetSelectedDevice(devicePath)
@@ -208,66 +233,51 @@ func (a *App) buildMainView() {
 			a.updateFlashButtonState()
 		},
 	})
-	deviceCardUI := a.deviceCard.Build()
 
-	// Step 3: Flash Options Card
 	a.optionsCard = cards.NewOptionsCard(cards.OptionsCardCallbacks{
 		OnForceChanged:  func(b bool) { a.SetForceChecked(b) },
 		OnVerifyChanged: func(b bool) { a.SetVerifyChecked(b) },
 		OnEjectChanged:  func(b bool) { a.SetEjectChecked(b) },
 		OnStartFlash:    func() { a.startFlash() },
 	})
-	optionsCardUI := a.optionsCard.Build()
 
-	// Wrap each card with fixed width constraint - slightly wider for modern feel
-	cardWidth := float32(300)
-	wrapCard := func(card fyne.CanvasObject) fyne.CanvasObject {
-		spacer := canvas.NewRectangle(color.Transparent)
-		spacer.SetMinSize(fyne.NewSize(cardWidth, 0))
-		return container.NewStack(spacer, card)
+	steps := container.NewGridWithColumns(3,
+		a.imageCard.Build(),
+		a.deviceCard.Build(),
+		a.optionsCard.Build(),
+	)
+
+	a.mainContent = container.NewBorder(nil, a.buildFooter(), nil, nil, util.Inset(16, steps))
+}
+
+// buildFooter shows branding, links and the version.
+func (a *App) buildFooter() fyne.CanvasObject {
+	a.logo = canvas.NewImageFromResource(pantacorLogoResource())
+	a.logo.FillMode = canvas.ImageFillContain
+	a.logo.SetMinSize(fyne.NewSize(96, 20))
+
+	ver := widget.NewLabel(versionText())
+	ver.Importance = widget.LowImportance
+	ver.SizeName = theme.SizeNameCaptionText
+
+	links := container.NewHBox(
+		widget.NewHyperlink("pantacor.com", mustParseURL("https://pantacor.com/")),
+		widget.NewHyperlink("pantavisor.io", mustParseURL("https://pantavisor.io/")),
+		ver,
+	)
+	return container.NewVBox(
+		widget.NewSeparator(),
+		container.NewBorder(nil, nil, util.Inset(8, a.logo), links),
+	)
+}
+
+// versionText formats the build version for display.
+func versionText() string {
+	v := strings.TrimPrefix(version.Version, "v")
+	if v == "" || v[0] < '0' || v[0] > '9' {
+		return "development build"
 	}
-
-	// Use GridWithColumns to ensure all cards have equal height with modern spacing
-	cardsContainer := container.NewGridWithColumns(3,
-		wrapCard(imageCardUI),
-		wrapCard(deviceCardUI),
-		wrapCard(optionsCardUI),
-	)
-
-	// Center the cards container with modern spacing
-	centeredCards := container.NewCenter(cardsContainer)
-
-	// Constrain footer to match cards width and center it
-	footerSpacer := canvas.NewRectangle(color.Transparent)
-	footerSpacer.SetMinSize(fyne.NewSize(cardWidth*3+40, 0)) // 3 cards + gaps
-	centeredFooter := container.NewCenter(container.NewStack(footerSpacer, brandFooter))
-
-	// Main content with modern generous spacing
-	contentBox := container.NewVBox(
-		util.SectionSpacer(32),
-		centeredCards,
-		util.SectionSpacer(24),
-		centeredFooter,
-		util.SectionSpacer(32),
-	)
-
-	// Make content scrollable
-	scrollableContent := container.NewVScroll(contentBox)
-
-	// Combine title bar (fixed) with scrollable content
-	mainLayout := container.NewBorder(
-		titleBar,
-		nil,
-		nil,
-		nil,
-		scrollableContent,
-	)
-
-	// Combine background and content using Stack
-	a.mainContent = container.NewStack(
-		background,
-		mainLayout,
-	)
+	return "v" + v
 }
 
 func mustParseURL(raw string) *url.URL {
@@ -278,46 +288,6 @@ func mustParseURL(raw string) *url.URL {
 	return parsed
 }
 
-// createModernHeader creates a modern header with title, subtitle and action
-func createModernHeader(title, subtitle string, action fyne.CanvasObject) fyne.CanvasObject {
-	// Main title
-	titleText := canvas.NewText(title, util.CurrentTextColor())
-	titleText.TextSize = 28
-	titleText.TextStyle = fyne.TextStyle{Bold: true}
-	titleText.Alignment = fyne.TextAlignCenter
-
-	// Subtitle
-	subtitleText := canvas.NewText(subtitle, util.CurrentSecondaryTextColor())
-	subtitleText.TextSize = 14
-	subtitleText.Alignment = fyne.TextAlignCenter
-
-	// Title container
-	titleContainer := container.NewVBox(
-		container.NewCenter(titleText),
-		util.SectionSpacer(4),
-		container.NewCenter(subtitleText),
-	)
-
-	// Add padding around title
-	paddedTitle := container.NewPadded(titleContainer)
-
-	// Create header with optional action
-	var headerContent fyne.CanvasObject
-	if action != nil {
-		// Use Border layout with action on right
-		headerContent = container.NewBorder(
-			nil, nil,
-			nil,
-			container.NewPadded(action),
-			paddedTitle,
-		)
-	} else {
-		headerContent = paddedTitle
-	}
-
-	return headerContent
-}
-
 func pantacorLogoResource() fyne.Resource {
 	if util.GetTheme().IsDark() {
 		return fyne.NewStaticResource("pantacor-logo-dark.svg", assets.PantacorLogoDarkSVG)
@@ -325,30 +295,51 @@ func pantacorLogoResource() fyne.Resource {
 	return fyne.NewStaticResource("pantacor-logo.svg", assets.PantacorLogoSVG)
 }
 
-type footerLink struct {
-	widget.Label
-	target *url.URL
+// onDropped accepts an image file dragged onto the window.
+func (a *App) onDropped(_ fyne.Position, uris []fyne.URI) {
+	if a.isFlashing() || len(uris) == 0 {
+		return
+	}
+	path := uris[0].Path()
+	if !cards.IsImageFile(path) {
+		dialog.ShowInformation("Unsupported File",
+			filepath.Base(path)+" is not a supported image.\n\nSupported: "+strings.Join(cards.ImageExtensions, " "),
+			a.window)
+		return
+	}
+	a.imageCard.SetLocalImage(path)
 }
 
-func newFooterLink(text, rawURL string) *footerLink {
-	link := &footerLink{target: mustParseURL(rawURL)}
-	link.ExtendBaseWidget(link)
-	link.SetText(text)
-	link.Alignment = fyne.TextAlignCenter
-	link.TextStyle = fyne.TextStyle{Bold: true}
-	return link
+// onCloseRequested asks before quitting while a flash is running.
+func (a *App) onCloseRequested() {
+	if !a.isFlashing() {
+		a.window.Close()
+		return
+	}
+	d := dialog.NewConfirm("Quit While Flashing?",
+		"Flashing is still in progress. Quitting now leaves the target unusable until it is flashed again.",
+		func(ok bool) {
+			if ok {
+				a.CancelFlash()
+				a.window.Close()
+			}
+		}, a.window)
+	d.SetConfirmText("Quit")
+	d.SetDismissText("Keep Flashing")
+	d.SetConfirmImportance(widget.DangerImportance)
+	d.Show()
 }
 
-func (l *footerLink) Tapped(*fyne.PointEvent) {
-	_ = fyne.CurrentApp().OpenURL(l.target)
+func (a *App) isFlashing() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.flashing
 }
-
-func (l *footerLink) TappedSecondary(*fyne.PointEvent) {}
 
 // buildProgressScreen builds the progress display screen
 func (a *App) buildProgressScreen() {
 	a.progressScreen = screens.NewProgressScreen(screens.ProgressScreenCallbacks{
-		OnCancel: a.CancelFlash,
+		OnCancel: a.confirmCancel,
 	})
 	a.progressContent = a.progressScreen.Build()
 
@@ -359,7 +350,7 @@ func (a *App) buildProgressScreen() {
 // buildSuccessScreen builds the success display screen
 func (a *App) buildSuccessScreen() {
 	a.successScreen = screens.NewSuccessScreen(screens.SuccessScreenCallbacks{
-		OnFlashAnother: a.resetToMainView,
+		OnFlashAnother: a.flashAnother,
 		OnViewLogs:     a.ShowLogsDialog,
 	})
 	a.successContent = a.successScreen.Build()
@@ -368,7 +359,7 @@ func (a *App) buildSuccessScreen() {
 // buildErrorScreen builds the error display screen
 func (a *App) buildErrorScreen() {
 	a.errorScreen = screens.NewErrorScreen(screens.ErrorScreenCallbacks{
-		OnTryAgain: a.resetToMainView,
+		OnTryAgain: a.showMainView,
 		OnViewLogs: a.ShowLogsDialog,
 	})
 	a.errorContent = a.errorScreen.Build()
@@ -386,58 +377,19 @@ func (a *App) updateFlashButtonState() {
 	}
 }
 
-// resetToMainView returns to the main view
-func (a *App) resetToMainView() {
-	a.mu.Lock()
-	a.selectedImage = ""
-	a.selectedDevice = ""
-	a.bmapPath = ""
-	a.selectedRel = nil
-	a.mu.Unlock()
-
-	// Reset cards
-	if a.imageCard != nil {
-		a.imageCard.Reset()
-	}
-	if a.deviceCard != nil {
-		a.deviceCard.Reset()
-	}
-	if a.optionsCard != nil {
-		a.optionsCard.SetFlashEnabled(false)
-	}
-
-	a.window.SetContent(a.mainContent)
+// showMainView returns to the selection view, keeping the current choices.
+func (a *App) showMainView() {
+	a.settingsBtn.Enable()
+	a.setScreen(a.mainContent)
+	a.deviceCard.StartPolling()
 }
 
-// rebuildAllViews rebuilds all views to apply theme changes
-func (a *App) rebuildAllViews() {
-	// Store current state
-	selectedImage := a.selectedImage
-	selectedDevice := a.selectedDevice
-	bmapPath := a.bmapPath
-
-	// Rebuild all views
-	a.buildMainView()
-	a.buildProgressScreen()
-	a.buildSuccessScreen()
-	a.buildErrorScreen()
-
-	// Restore state
-	a.selectedImage = selectedImage
-	a.selectedDevice = selectedDevice
-	a.bmapPath = bmapPath
-
-	// Update UI labels if needed
-	if selectedImage != "" && a.imageCard != nil {
-		a.imageCard.SelectedImageLabel.SetText(fmt.Sprintf("📁 %s", filepath.Base(selectedImage)))
-	}
-	if selectedDevice != "" && a.deviceCard != nil {
-		a.deviceCard.SelectedDeviceLabel.SetText(selectedDevice)
-	}
+// flashAnother keeps the image but clears the (possibly ejected) target.
+func (a *App) flashAnother() {
+	a.SetSelectedDevice("")
+	a.deviceCard.Reset()
 	a.updateFlashButtonState()
-
-	// Refresh the window content
-	a.window.SetContent(a.mainContent)
+	a.showMainView()
 }
 
 // showProgressScreen shows the progress view
@@ -450,21 +402,25 @@ func (a *App) showProgressScreen() {
 	a.progressChan = make(chan flash.Progress, 10)
 	a.mu.Unlock()
 
-	a.window.SetContent(a.progressContent)
+	a.deviceCard.StopPolling()
+	a.settingsBtn.Disable()
+	a.setScreen(a.progressContent)
 	go a.progressListener()
 }
 
 // showSuccessScreen shows the success view
 func (a *App) showSuccessScreen() {
 	fyne.Do(func() {
-		a.window.SetContent(a.successContent)
+		a.settingsBtn.Enable()
+		a.setScreen(a.successContent)
 	})
 }
 
 // showErrorScreen shows the error view
 func (a *App) showErrorScreen() {
 	fyne.Do(func() {
-		a.window.SetContent(a.errorContent)
+		a.settingsBtn.Enable()
+		a.setScreen(a.errorContent)
 	})
 }
 
@@ -473,9 +429,9 @@ func (a *App) checkBmapStatus(imagePath string) string {
 	bmapPath := a.CheckBmap(imagePath)
 	if bmapPath != "" {
 		a.SetBmapPath(bmapPath)
-		return fmt.Sprintf("✅ Found: %s", filepath.Base(bmapPath))
+		return "Block map found — only used blocks are written"
 	}
-	return "💡 No bmap file found (will use full image)"
+	return "No block map — the full image is written"
 }
 
 // CheckBmap returns the path of the auto-discovered bmap file
@@ -514,41 +470,57 @@ func (a *App) GetLogs() []string {
 
 // ShowLogsDialog displays logs in a dialog
 func (a *App) ShowLogsDialog() {
-	logs := a.GetLogs()
-	logsText := strings.Join(logs, "\n")
-	textWidget := widget.NewLabel(logsText)
-	textWidget.Wrapping = fyne.TextWrapBreak
-	scrollable := container.NewVScroll(textWidget)
-	scrollable.SetMinSize(fyne.NewSize(600, 400))
-	dialog.ShowCustom("Flash Operation Logs", "Close", scrollable, a.window)
+	logsText := strings.Join(a.GetLogs(), "\n")
+	text := widget.NewLabel(logsText)
+	text.TextStyle = fyne.TextStyle{Monospace: true}
+	text.Selectable = true
+	text.Wrapping = fyne.TextWrapBreak
+	scroll := container.NewVScroll(text)
+	scroll.SetMinSize(fyne.NewSize(640, 360))
+
+	d := dialog.NewCustom("Flash Log", "Close", scroll, a.window)
+	copyBtn := widget.NewButtonWithIcon("Copy", theme.ContentCopyIcon(), func() {
+		a.fyneApp.Clipboard().SetContent(logsText)
+	})
+	d.SetButtons([]fyne.CanvasObject{copyBtn, widget.NewButton("Close", d.Hide)})
+	d.Show()
 }
 
-// showSettingsDialog shows the settings dialog for theme and scale
+// showSettingsDialog shows appearance and help settings
 func (a *App) showSettingsDialog() {
-	// Theme toggle
-	themeBtn := util.ThemeToggleButton(a.fyneApp, func() {
-		a.rebuildAllViews()
-	})
+	labels := map[string]string{"system": "Follow system", "light": "Light", "dark": "Dark"}
+	values := map[string]string{"Follow system": "system", "Light": "light", "Dark": "dark"}
 
-	troubleshootingHint := widget.NewLabel("Troubleshooting and display-scaling notes live in the repository guide.")
-	troubleshootingHint.Wrapping = fyne.TextWrapWord
+	appearance := widget.NewRadioGroup([]string{"Follow system", "Light", "Dark"}, nil)
+	pref := a.themePref
+	if _, ok := labels[pref]; !ok {
+		pref = "system"
+	}
+	appearance.SetSelected(labels[pref])
+	appearance.Required = true
+	appearance.OnChanged = func(sel string) {
+		a.themePref = values[sel]
+		a.applyTheme()
+		config, err := util.LoadConfig()
+		if err != nil {
+			config = util.DefaultConfig()
+		}
+		config.Theme = a.themePref
+		_ = util.SaveConfig(config)
+	}
 
-	troubleshootingLink := newFooterLink(
-		"Open Troubleshooting Guide",
-		"https://github.com/pantavisor/pvflasher/blob/main/docs/TROUBLESHOOTING.md",
+	help := widget.NewHyperlink("Troubleshooting guide",
+		mustParseURL("https://github.com/pantavisor/pvflasher/blob/main/docs/TROUBLESHOOTING.md"))
+
+	ver := widget.NewLabel("PvFlasher " + versionText())
+	ver.Importance = widget.LowImportance
+
+	form := widget.NewForm(
+		widget.NewFormItem("Appearance", appearance),
+		widget.NewFormItem("Help", help),
 	)
-
-	content := container.NewVBox(
-		widget.NewLabelWithStyle("Appearance", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		themeBtn,
-		util.SectionSpacer(10),
-		widget.NewLabelWithStyle("Troubleshooting", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		troubleshootingHint,
-		troubleshootingLink,
-	)
-
-	d := dialog.NewCustom("Settings", "Close", content, a.window)
-	d.Resize(fyne.NewSize(460, 220))
+	d := dialog.NewCustom("Settings", "Close", container.NewVBox(form, ver), a.window)
+	d.Resize(fyne.NewSize(420, 0))
 	d.Show()
 }
 

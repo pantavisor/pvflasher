@@ -2,17 +2,25 @@ package cards
 
 import (
 	"fmt"
-	"image/color"
+	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"pvflasher/gui/util"
 	"pvflasher/internal/device"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
+
+// devicePollInterval is how often the device list is re-scanned so that
+// inserted or removed cards show up without a manual refresh.
+const devicePollInterval = 3 * time.Second
 
 // DeviceCardCallbacks defines callbacks for device card events
 type DeviceCardCallbacks struct {
@@ -25,9 +33,18 @@ type DeviceCard struct {
 	window    fyne.Window
 	callbacks DeviceCardCallbacks
 
-	// Widgets
-	SelectedDeviceLabel *util.ColoredLabel
-	DeviceListSelect    *widget.Select
+	tile          *util.SelectionTile
+	deviceSelect  *widget.Select
+	mountedNotice fyne.CanvasObject
+	mountedLabel  *widget.Label
+	hiddenLink    *widget.Hyperlink
+
+	mu       sync.Mutex
+	devices  map[string]device.Device // option label -> device
+	hidden   []device.Device          // drives never offered as targets
+	lastScan string
+	polling  bool
+	stopPoll chan struct{}
 }
 
 // NewDeviceCard creates a new device selection card
@@ -35,148 +52,241 @@ func NewDeviceCard(window fyne.Window, callbacks DeviceCardCallbacks) *DeviceCar
 	return &DeviceCard{
 		window:    window,
 		callbacks: callbacks,
+		devices:   map[string]device.Device{},
 	}
 }
 
 // Build constructs and returns the card UI
 func (c *DeviceCard) Build() fyne.CanvasObject {
-	stepLabel := util.StepLabel("STEP 2")
-	titleLabel := util.SubHeadingLabel("Select Target Device")
+	c.tile = util.NewSelectionTile(theme.StorageIcon(), "No target selected", "Insert an SD card or USB drive")
 
-	c.SelectedDeviceLabel = util.NewThemedLabelBold("No device selected")
+	c.deviceSelect = widget.NewSelect(nil, c.onSelected)
+	c.deviceSelect.PlaceHolder = "Select target…"
 
-	c.DeviceListSelect = widget.NewSelect([]string{}, func(s string) {
-		parts := strings.Split(s, " ")
-		if len(parts) > 0 {
-			devicePath := parts[0]
-			c.SelectedDeviceLabel.SetText(devicePath)
+	refresh := widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() { go c.scan() })
+	refresh.Importance = widget.LowImportance
 
-			if c.callbacks.OnDeviceSelected != nil {
-				c.callbacks.OnDeviceSelected(devicePath)
-			}
-		}
-	})
+	c.mountedLabel, c.mountedNotice = util.Notice(theme.NewWarningThemedResource(theme.WarningIcon()), "")
+	c.mountedNotice.Hide()
 
-	refreshButton := util.PrimaryActionButton("Refresh Devices", func() {
-		c.RefreshDeviceList()
-	})
+	_, eraseNotice := util.Notice(theme.NewWarningThemedResource(theme.WarningIcon()),
+		"Everything on the target will be erased.")
 
-	c.RefreshDeviceList()
+	c.hiddenLink = widget.NewHyperlink("", nil)
+	c.hiddenLink.SizeName = theme.SizeNameCaptionText
+	c.hiddenLink.Alignment = fyne.TextAlignCenter
+	c.hiddenLink.OnTapped = c.showHiddenDrives
+	c.hiddenLink.Hide()
 
-	header := container.NewVBox(
-		stepLabel,
-		util.SectionSpacer(6),
-		titleLabel,
-		util.SectionSpacer(8),
-	)
+	go c.scan()
 
-	// Modern warning box with better styling
-	warningBox := createModernWarningBox()
-
-	// Wrap device select with proper height
-	deviceSelectContainer := util.TallSelect(c.DeviceListSelect)
-
-	contentBox := container.NewVBox(
-		warningBox,
-		util.SectionSpacer(16),
-		util.InstructionLabel("Selected Device:"),
-		util.SectionSpacer(6),
-		c.SelectedDeviceLabel,
-		util.SectionSpacer(16),
-		util.InstructionLabel("Available Devices:"),
-		util.SectionSpacer(6),
-		deviceSelectContainer,
-	)
-
-	// Use border to place button at bottom with full width
-	cardContent := container.NewBorder(
-		header,        // top
-		refreshButton, // bottom (button with full width)
-		nil,           // left
-		nil,           // right
-		contentBox,    // center
-	)
-
-	return util.StyledCardWithBorder(cardContent)
+	return util.NewSurface(container.NewBorder(
+		util.StepHeader("2", "Target"),
+		container.NewVBox(eraseNotice, container.NewBorder(nil, nil, nil, refresh, c.deviceSelect), c.hiddenLink),
+		nil, nil,
+		container.NewVBox(layout.NewSpacer(), c.tile.Object, c.mountedNotice, layout.NewSpacer()),
+	))
 }
 
-// RefreshDeviceList refreshes the device list
-func (c *DeviceCard) RefreshDeviceList() {
-	mgr := device.NewManager()
-	devices, err := mgr.List()
-	if err != nil {
-		c.DeviceListSelect.Options = []string{"Error: " + err.Error()}
+// DeviceTitle returns a human-readable name for a device.
+func DeviceTitle(d device.Device) string {
+	var parts []string
+	for _, p := range []string{d.Vendor, d.Model} {
+		p = strings.TrimSpace(strings.ReplaceAll(p, "_", " "))
+		if p != "" && !strings.EqualFold(p, "unknown") && !slices.Contains(parts, p) {
+			parts = append(parts, p)
+		}
+	}
+	name := strings.Join(parts, " ")
+	if name == "" {
+		name = "Removable drive"
+	}
+	return name
+}
+
+func deviceOption(d device.Device) string {
+	label := fmt.Sprintf("%s — %s (%s)", d.Name, DeviceTitle(d), util.FormatBytes(d.Size))
+	if len(d.MountPoints) > 0 {
+		label += " · mounted"
+	}
+	return label
+}
+
+// scan re-enumerates devices and updates the list if anything changed.
+func (c *DeviceCard) scan() {
+	devices, err := device.NewManager().List()
+
+	var keys []string
+	var hidden []device.Device
+	found := map[string]device.Device{}
+	if err == nil {
+		for _, d := range devices {
+			// Internal disks, drives in use by the system and empty card
+			// readers are never offered as flashing targets.
+			if d.UnsafeReason() != "" {
+				hidden = append(hidden, d)
+				continue
+			}
+			label := deviceOption(d)
+			keys = append(keys, label)
+			found[label] = d
+		}
+	}
+	var signature string
+	for _, d := range hidden {
+		signature += "hidden:" + deviceOption(d) + "|" + d.UnsafeReason() + "\n"
+	}
+	for _, k := range keys {
+		signature += k + "|" + strings.Join(found[k].MountPoints, ",") + "\n"
+	}
+
+	c.mu.Lock()
+	if signature == c.lastScan && err == nil {
+		c.mu.Unlock()
 		return
 	}
+	c.lastScan = signature
+	c.devices = found
+	c.hidden = hidden
+	c.mu.Unlock()
 
-	options := []string{}
-	for _, d := range devices {
-		// Skip system drives entirely - they should never be flashing targets
-		if c.isSystemDrive(d.MountPoints) {
-			continue
+	fyne.DoAndWait(func() {
+		if err != nil {
+			c.deviceSelect.PlaceHolder = "Could not list devices"
+			c.deviceSelect.SetOptions(nil)
+			return
 		}
-
-		warning := ""
-		if len(d.MountPoints) > 0 {
-			warning = " ⚠️ MOUNTED"
+		if len(keys) == 0 {
+			c.deviceSelect.PlaceHolder = "No removable drives found"
+		} else {
+			c.deviceSelect.PlaceHolder = "Select target…"
 		}
-
-		sizeStr := fmt.Sprintf("%.0f GB", float64(d.Size)/1e9)
-		options = append(options, fmt.Sprintf("%s (%s - %s)%s", d.Name, d.Vendor, sizeStr, warning))
-	}
-	c.DeviceListSelect.Options = options
-	c.DeviceListSelect.PlaceHolder = "(Select one)"
+		switch len(hidden) {
+		case 0:
+		case 1:
+			c.hiddenLink.SetText("Why is 1 drive hidden?")
+		default:
+			c.hiddenLink.SetText(fmt.Sprintf("Why are %d drives hidden?", len(hidden)))
+		}
+		c.hiddenLink.Hidden = len(hidden) == 0
+		c.hiddenLink.Refresh()
+		selected := c.deviceSelect.Selected
+		c.deviceSelect.SetOptions(keys)
+		if _, ok := found[selected]; selected != "" && !ok {
+			// The selected drive was removed.
+			c.Reset()
+			if c.callbacks.OnDeviceCleared != nil {
+				c.callbacks.OnDeviceCleared()
+			}
+		} else if ok {
+			c.showDevice(found[selected])
+		}
+	})
 }
 
-// isSystemDrive checks if any mount point indicates a system/boot drive
-// createModernWarningBox creates a styled warning box with modern design
-func createModernWarningBox() fyne.CanvasObject {
-	// Warning icon and text
-	titleLabel := canvas.NewText("⚠️  Destructive Action", util.ColorWarning)
-	titleLabel.TextSize = 13
-	titleLabel.TextStyle = fyne.TextStyle{Bold: true}
+// showHiddenDrives lists the drives filtered out of the target list and why.
+func (c *DeviceCard) showHiddenDrives() {
+	c.mu.Lock()
+	hidden := slices.Clone(c.hidden)
+	c.mu.Unlock()
 
-	messageLabel := widget.NewLabel("This operation will erase the selected device. Make sure you have selected the correct target!")
-	messageLabel.Wrapping = fyne.TextWrapWord
+	intro := widget.NewLabel("To protect your system, these drives are never offered as flashing targets.")
+	intro.Wrapping = fyne.TextWrapWord
 
-	content := container.NewVBox(
-		titleLabel,
-		util.SectionSpacer(6),
-		messageLabel,
-	)
+	list := container.NewVBox()
+	for _, d := range hidden {
+		name := widget.NewLabelWithStyle(fmt.Sprintf("%s — %s (%s)", d.Name, DeviceTitle(d), util.FormatBytes(d.Size)),
+			fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+		name.Truncation = fyne.TextTruncateEllipsis
+		reason := widget.NewLabel(capitalize(d.UnsafeReason()))
+		reason.Importance = widget.LowImportance
+		reason.SizeName = theme.SizeNameCaptionText
+		reason.Wrapping = fyne.TextWrapWord
+		list.Add(container.NewBorder(nil, nil,
+			container.NewVBox(container.NewGridWrap(fyne.NewSize(24, 24), widget.NewIcon(theme.StorageIcon()))),
+			nil, container.NewVBox(name, reason)))
+	}
 
-	// Add padding around content
-	paddedContent := container.NewPadded(content)
-
-	// Create a background with subtle warning tint
-	bg := canvas.NewRectangle(color.Transparent)
-	bg.StrokeColor = util.ColorWarning
-	bg.StrokeWidth = 1
-
-	return container.NewStack(bg, paddedContent)
+	d := dialog.NewCustom("Hidden Drives", "Close", container.NewVBox(intro, widget.NewSeparator(), list), c.window)
+	d.Resize(fyne.NewSize(520, 0))
+	d.Show()
 }
 
-func (c *DeviceCard) isSystemDrive(mountPoints []string) bool {
-	systemMounts := []string{"/", "/boot", "/boot/efi", "/home", "/usr", "/var", "/etc"}
-	for _, mp := range mountPoints {
-		for _, sm := range systemMounts {
-			if mp == sm {
-				return true
-			}
-		}
-		// Also check for Windows system drives
-		if len(mp) >= 2 && mp[1] == ':' {
-			drive := strings.ToUpper(string(mp[0]))
-			if drive == "C" {
-				return true
-			}
-		}
+func capitalize(s string) string {
+	if s == "" {
+		return s
 	}
-	return false
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// StartPolling re-scans devices periodically until StopPolling is called.
+func (c *DeviceCard) StartPolling() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.polling {
+		return
+	}
+	c.polling = true
+	c.stopPoll = make(chan struct{})
+	stop := c.stopPoll
+	go func() {
+		t := time.NewTicker(devicePollInterval)
+		defer t.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-t.C:
+				c.scan()
+			}
+		}
+	}()
+}
+
+// StopPolling stops the background device scan.
+func (c *DeviceCard) StopPolling() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.polling {
+		close(c.stopPoll)
+		c.polling = false
+	}
+}
+
+func (c *DeviceCard) onSelected(label string) {
+	c.mu.Lock()
+	d, ok := c.devices[label]
+	c.mu.Unlock()
+	if !ok {
+		return
+	}
+	c.showDevice(d)
+	if c.callbacks.OnDeviceSelected != nil {
+		c.callbacks.OnDeviceSelected(d.Name)
+	}
+}
+
+func (c *DeviceCard) showDevice(d device.Device) {
+	c.tile.Set(theme.StorageIcon(), DeviceTitle(d), d.Name+" · "+util.FormatBytes(d.Size))
+	if len(d.MountPoints) > 0 {
+		c.mountedLabel.SetText("Mounted — will be unmounted before writing")
+		c.mountedNotice.Show()
+	} else {
+		c.mountedNotice.Hide()
+	}
+}
+
+// SelectedDevice returns the currently selected device, if any.
+func (c *DeviceCard) SelectedDevice() (device.Device, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	d, ok := c.devices[c.deviceSelect.Selected]
+	return d, ok
 }
 
 // Reset clears the card state
 func (c *DeviceCard) Reset() {
-	c.SelectedDeviceLabel.SetText("No device selected")
-	c.DeviceListSelect.ClearSelected()
+	c.tile.Set(theme.StorageIcon(), "No target selected", "Insert an SD card or USB drive")
+	c.mountedNotice.Hide()
+	c.deviceSelect.ClearSelected()
 }

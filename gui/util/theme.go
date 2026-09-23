@@ -95,10 +95,11 @@ func (t *AppTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) co
 		return ColorBackground
 
 	case theme.ColorNameButton:
+		// Neutral surface so only HighImportance buttons read as primary actions.
 		if isDark {
-			return ColorDarkCardBg
+			return ColorDarkElevated
 		}
-		return ColorPrimary
+		return ColorButtonLight
 
 	case theme.ColorNameDisabledButton:
 		// Lighter gray for disabled button background
@@ -240,11 +241,13 @@ func (t *AppTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 func (t *AppTheme) Size(name fyne.ThemeSizeName) float32 {
 	switch name {
 	case theme.SizeNamePadding:
-		return 16
+		return 6
+	case theme.SizeNameInnerPadding:
+		return 8
 	case theme.SizeNameInlineIcon:
 		return 20
 	case theme.SizeNameScrollBar:
-		return 12
+		return 10
 	case theme.SizeNameScrollBarSmall:
 		return 4
 	case theme.SizeNameSeparatorThickness:
@@ -252,17 +255,17 @@ func (t *AppTheme) Size(name fyne.ThemeSizeName) float32 {
 	case theme.SizeNameText:
 		return 14
 	case theme.SizeNameHeadingText:
-		return 28
+		return 22
 	case theme.SizeNameSubHeadingText:
-		return 20
+		return 17
 	case theme.SizeNameCaptionText:
 		return 12
 	case theme.SizeNameInputBorder:
-		return 2
+		return 1
 	case theme.SizeNameInputRadius:
-		return 10
+		return 6
 	case theme.SizeNameSelectionRadius:
-		return 8
+		return 6
 	}
 	return theme.DefaultTheme().Size(name)
 }

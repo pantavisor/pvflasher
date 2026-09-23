@@ -80,6 +80,7 @@ Type=Application
 Name=PvFlasher
 Comment=Cross-platform USB Image Flasher
 Exec=pvflasher
+StartupWMClass=PvFlasher
 Icon=pvflasher
 Terminal=false
 Categories=Utility;

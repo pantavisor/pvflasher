@@ -6,8 +6,9 @@ import (
 	"pvflasher/gui/util"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -22,7 +23,7 @@ type ErrorScreen struct {
 	callbacks ErrorScreenCallbacks
 
 	// Widgets
-	errorLabel *util.ColoredLabel
+	errorLabel *widget.Label
 	tipsBox    *fyne.Container
 
 	// Content
@@ -38,54 +39,67 @@ func NewErrorScreen(callbacks ErrorScreenCallbacks) *ErrorScreen {
 
 // Build constructs and returns the screen UI
 func (s *ErrorScreen) Build() fyne.CanvasObject {
-	titleBar := util.CreateTitleBar("❌ Flash Operation Failed")
+	header, sub := resultHeader(theme.NewErrorThemedResource(theme.ErrorIcon()), "Flash Failed")
+	sub.SetText("The target may not be usable until it is flashed successfully.")
 
-	s.errorLabel = util.NewColoredLabel("Error details will appear here", util.ColorError)
+	s.errorLabel = widget.NewLabel("")
+	s.errorLabel.Wrapping = fyne.TextWrapWord
+	s.errorLabel.Selectable = true
+	s.errorLabel.TextStyle = fyne.TextStyle{Monospace: true}
+
 	s.tipsBox = container.NewVBox()
 
-	errorCard := widget.NewCard("", "", container.NewVBox(
-		util.SubHeadingLabel("Error Details"),
-		util.SectionSpacer(4),
-		s.errorLabel,
-	))
+	tipsTitle := widget.NewLabelWithStyle("What you can try", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 
-	tipsCard := widget.NewCard("", "", container.NewVBox(
-		util.SubHeadingLabel("💡 Troubleshooting Tips"),
-		util.SectionSpacer(4),
-		s.tipsBox,
-	))
-
-	tryAgainButton := util.PrimaryButton("🔄 Try Again", func() {
+	tryAgainButton := widget.NewButtonWithIcon("Back", theme.NavigateBackIcon(), func() {
 		if s.callbacks.OnTryAgain != nil {
 			s.callbacks.OnTryAgain()
 		}
 	})
+	tryAgainButton.Importance = widget.HighImportance
 
-	viewLogsButton := util.PrimaryButton("📋 View Logs", func() {
+	viewLogsButton := widget.NewButtonWithIcon("View Log", theme.DocumentIcon(), func() {
 		if s.callbacks.OnViewLogs != nil {
 			s.callbacks.OnViewLogs()
 		}
 	})
 
-	// Create background
-	background := canvas.NewRectangle(util.CurrentBackgroundColor())
-
-	// Main content
-	contentBox := container.NewVBox(
-		titleBar,
-		errorCard,
-		tipsCard,
-		util.SectionSpacer(12),
-		container.NewHBox(tryAgainButton, viewLogsButton),
-	)
-
-	// Stack background with content
-	s.content = container.NewStack(
-		background,
-		container.NewPadded(contentBox),
-	)
-
+	s.content = container.NewCenter(util.MinWidth(560, container.NewVBox(
+		header,
+		util.SectionSpacer(8),
+		util.NewSurface(container.NewVBox(s.errorLabel, widget.NewSeparator(), tipsTitle, s.tipsBox)),
+		util.SectionSpacer(8),
+		container.NewHBox(layout.NewSpacer(), viewLogsButton, tryAgainButton),
+	)))
 	return s.content
+}
+
+// errorTips returns context-sensitive suggestions for an error message.
+func errorTips(errMsg string) []string {
+	var tips []string
+	errLower := strings.ToLower(errMsg)
+	if strings.Contains(errLower, "mounted") || strings.Contains(errLower, "busy") {
+		tips = append(tips, "Close any file manager windows showing the target, or enable “Unmount without asking”.")
+	}
+	if strings.Contains(errLower, "permission") || strings.Contains(errLower, "authentication") || strings.Contains(errLower, "not authorized") {
+		tips = append(tips, "PvFlasher needs administrator rights to write to the target. Approve the password prompt when asked.")
+	}
+	if strings.Contains(errLower, "verification") || strings.Contains(errLower, "checksum") {
+		tips = append(tips, "The image file may be corrupted. Download it again.")
+		tips = append(tips, "The card may be failing. Try a different one.")
+	}
+	if strings.Contains(errLower, "not found") || strings.Contains(errLower, "no such") {
+		tips = append(tips, "Check that the target is still connected, then select it again.")
+	}
+	if strings.Contains(errLower, "download") || strings.Contains(errLower, "network") {
+		tips = append(tips, "Check your internet connection and try again.")
+	}
+	if len(tips) == 0 {
+		tips = append(tips,
+			"Reconnect the target and try again.",
+			"Open the log for the full error output.")
+	}
+	return tips
 }
 
 // SetError updates the error message and generates tips
@@ -93,34 +107,10 @@ func (s *ErrorScreen) SetError(errMsg string) {
 	fyne.Do(func() {
 		s.errorLabel.SetText(errMsg)
 		s.tipsBox.RemoveAll()
-
-		tips := []string{}
-
-		// Context-sensitive tips
-		errLower := strings.ToLower(errMsg)
-		if strings.Contains(errLower, "mounted") {
-			tips = append(tips, "• Device is mounted: Try using the 'Force' option or unmount the device first")
-		}
-		if strings.Contains(errLower, "permission") {
-			tips = append(tips, "• Permission denied: Try running with admin/root privileges")
-		}
-		if strings.Contains(errLower, "verification") {
-			tips = append(tips, "• Verification failed: Check that the image file is not corrupted")
-			tips = append(tips, "• Try flashing with 'Force' option to skip verification")
-		}
-		if strings.Contains(errLower, "device") || strings.Contains(errLower, "not found") {
-			tips = append(tips, "• Device not found: Check that the device is properly connected")
-			tips = append(tips, "• Try refreshing the device list")
-		}
-
-		if len(tips) == 0 {
-			tips = append(tips, "• Check that the image file is valid and not corrupted")
-			tips = append(tips, "• Ensure the target device is properly connected")
-			tips = append(tips, "• Try again or check the logs for more details")
-		}
-
-		for _, tip := range tips {
-			s.tipsBox.Add(util.NewColoredLabel(tip, util.CurrentSecondaryTextColor()))
+		for _, tip := range errorTips(errMsg) {
+			l := widget.NewLabel("•  " + tip)
+			l.Wrapping = fyne.TextWrapWord
+			s.tipsBox.Add(l)
 		}
 		s.tipsBox.Refresh()
 	})

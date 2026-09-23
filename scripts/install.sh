@@ -432,6 +432,7 @@ Type=Application
 Categories=System;Utility;
 Keywords=usb;flash;image;disk;bmap;
 StartupNotify=true
+StartupWMClass=PvFlasher
 EOF
 
 		echo ""

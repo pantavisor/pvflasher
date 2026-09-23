@@ -5,6 +5,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -25,6 +26,7 @@ type OptionsCard struct {
 	VerifyCheck *widget.Check
 	EjectCheck  *widget.Check
 	FlashButton *widget.Button
+	hint        *widget.Label
 }
 
 // NewOptionsCard creates a new flash options card
@@ -36,71 +38,57 @@ func NewOptionsCard(callbacks OptionsCardCallbacks) *OptionsCard {
 
 // Build constructs and returns the card UI
 func (c *OptionsCard) Build() fyne.CanvasObject {
-	stepLabel := util.StepLabel("STEP 3")
-	titleLabel := util.SubHeadingLabel("Flash Options & Summary")
-
-	// Modern styled checkboxes with improved spacing
-	c.ForceCheck = widget.NewCheck("Force write (ignore mount warnings)", func(b bool) {
-		if c.callbacks.OnForceChanged != nil {
-			c.callbacks.OnForceChanged(b)
-		}
-	})
-
-	c.VerifyCheck = widget.NewCheck("Validate image after write", func(b bool) {
+	c.VerifyCheck = widget.NewCheck("Verify after writing", func(b bool) {
 		if c.callbacks.OnVerifyChanged != nil {
 			c.callbacks.OnVerifyChanged(b)
 		}
 	})
 	c.VerifyCheck.SetChecked(true)
 
-	c.EjectCheck = widget.NewCheck("Eject device after completion", func(b bool) {
+	c.EjectCheck = widget.NewCheck("Eject when finished", func(b bool) {
 		if c.callbacks.OnEjectChanged != nil {
 			c.callbacks.OnEjectChanged(b)
 		}
 	})
 	c.EjectCheck.SetChecked(true)
 
-	c.FlashButton = util.PrimaryActionButton("Start Flash", func() {
+	c.ForceCheck = widget.NewCheck("Unmount without asking", func(b bool) {
+		if c.callbacks.OnForceChanged != nil {
+			c.callbacks.OnForceChanged(b)
+		}
+	})
+
+	c.FlashButton = widget.NewButtonWithIcon("Flash", theme.UploadIcon(), func() {
 		if c.callbacks.OnStartFlash != nil {
 			c.callbacks.OnStartFlash()
 		}
 	})
+	c.FlashButton.Importance = widget.HighImportance
 	c.FlashButton.Disable()
 
-	header := container.NewVBox(
-		stepLabel,
-		util.SectionSpacer(6),
-		titleLabel,
-		util.SectionSpacer(8),
-	)
+	c.hint = widget.NewLabel("")
+	c.hint.Alignment = fyne.TextAlignCenter
+	c.hint.Importance = widget.LowImportance
+	c.hint.SizeName = theme.SizeNameCaptionText
+	c.SetFlashEnabled(false)
 
-	contentBox := container.NewVBox(
-		util.InstructionLabel("Options:"),
-		util.SectionSpacer(16),
-		c.ForceCheck,
-		util.SectionSpacer(12),
-		c.VerifyCheck,
-		util.SectionSpacer(12),
-		c.EjectCheck,
-	)
+	options := container.NewVBox(c.VerifyCheck, c.EjectCheck, c.ForceCheck)
 
-	// Use border to place button at bottom with full width
-	cardContent := container.NewBorder(
-		header,        // top
-		c.FlashButton, // bottom (button with full width)
-		nil,           // left
-		nil,           // right
-		contentBox,    // center
-	)
-
-	return util.StyledCardWithBorder(cardContent)
+	return util.NewSurface(container.NewBorder(
+		util.StepHeader("3", "Flash"),
+		container.NewVBox(c.hint, util.TallButton(c.FlashButton, 44)),
+		nil, nil,
+		container.NewCenter(options),
+	))
 }
 
 // SetFlashEnabled enables or disables the flash button
 func (c *OptionsCard) SetFlashEnabled(enabled bool) {
 	if enabled {
 		c.FlashButton.Enable()
+		c.hint.SetText("Ready to flash")
 	} else {
 		c.FlashButton.Disable()
+		c.hint.SetText("Choose an image and a target first")
 	}
 }

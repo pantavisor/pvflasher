@@ -25,6 +25,7 @@ var (
 	ColorHeaderBg      = color.NRGBA{R: 0x0F, G: 0x17, B: 0x2A, A: 0xFF} // Deep navy header
 	ColorDanger        = color.NRGBA{R: 0xDC, G: 0x26, B: 0x26, A: 0xFF} // Bright danger red
 	ColorDisabled      = color.NRGBA{R: 0x94, G: 0xA3, B: 0xB8, A: 0xFF} // Muted gray
+	ColorButtonLight   = color.NRGBA{R: 0xE7, G: 0xEB, B: 0xF0, A: 0xFF} // Neutral button surface
 
 	// Dark theme colors - refined for modern look
 	ColorDarkBackground    = color.NRGBA{R: 0x0F, G: 0x14, B: 0x1C, A: 0xFF} // Deep dark background

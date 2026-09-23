@@ -7,3 +7,6 @@ var PantacorLogoSVG []byte
 
 //go:embed pantacor-logo-dark.svg
 var PantacorLogoDarkSVG []byte
+
+//go:embed icon.png
+var AppIconPNG []byte

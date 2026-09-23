@@ -54,6 +54,7 @@ cat >"$APP_DIR/pvflasher.desktop" <<EOF
 Type=Application
 Name=PvFlasher
 Exec=pvflasher
+StartupWMClass=PvFlasher
 Icon=pvflasher
 Categories=Utility;
 EOF
