@@ -1,8 +1,27 @@
 
+<a name="v1.1.0"></a>
+## [v1.1.0](https://github.com/pantavisor/pvflasher/compare/v1.0.0...v1.1.0)
+
+> 2026-09-23
+
+### Feature
+
+* show current and latest versions with an update action
+
+### Fix
+
+* embed the release version in fyne-cross builds
+* fetch the update manifest without Accept: application/json
+
+
 <a name="v1.0.0"></a>
 ## [v1.0.0](https://github.com/pantavisor/pvflasher/compare/v0.0.11...v1.0.0)
 
 > 2026-09-23
+
+### Chore
+
+* update changelog for v1.0.0
 
 ### Ci
 
