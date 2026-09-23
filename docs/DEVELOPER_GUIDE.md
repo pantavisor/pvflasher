@@ -80,6 +80,15 @@ To create distributable packages:
     make package-dmg
     ```
 
+## 🔄 Releases and Self-Updates
+
+Pushing a `v*` tag builds every package and creates the GitHub release. For stable tags the release job also runs `tools/updater`, which signs each update bundle (AppImage, `.tar.xz`, Windows and macOS `.zip`) with minisign and publishes `latest.json` in [Tauri's updater format](https://v2.tauri.app/plugin/updater/). The app reads it from `releases/latest/download/latest.json` (`internal/update`).
+
+*   **Signing key**: the minisign private key is the `UPDATER_PRIVATE_KEY` repository secret (base64-encoded key file, like Tauri). The matching public key, ID `B711C321FA6FF262`, is compiled into `internal/update/pubkey.go`. Keep a backup of the private key: without it, existing installs can't receive updates.
+*   **Downgrade protection**: each signature's trusted comment carries `file:` and `version:`, and the app refuses a bundle whose signed file name or version doesn't match the manifest.
+*   **Testing a release**: point a build at another manifest with `PVFLASHER_UPDATE_MANIFEST=http://…/latest.json`; bundles must still be signed with the release key. Development builds (versions that aren't a plain tag) never update.
+*   **Rotating the key**: ship a release whose `pubkey.go` holds the new key, signed with the old one; sign the releases after it with the new key.
+
 ## 🧪 Testing
 
 Run all unit tests in `internal/` and `pkg/`:

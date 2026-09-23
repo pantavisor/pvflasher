@@ -46,6 +46,7 @@ Reproduce it on your own hardware with [`scripts/benchmark-flash.sh`](scripts/be
 *   **Safety**: The GUI only offers external drives, hides internal disks and drives in use by the system, and asks for confirmation before erasing the target.
 *   **Verification**: Automatic SHA256/SHA512 checksum verification of written data.
 *   **Pantavisor Integration**: Browse and download Pantavisor images directly from the GUI.
+*   **Automatic Updates**: Signed, Tauri-style self-updates for the AppImage, the standalone binaries and the Windows/macOS apps.
 *   **Dual Interface**:
     *   **CLI**: Powerful command-line tool for scripts and power users.
     *   **GUI**: Native desktop application built with Fyne.
@@ -136,6 +137,12 @@ pvflasher copy image.img.gz /dev/sdX
 ```
 
 See the [User Guide](docs/USER_GUIDE.md) for full command documentation.
+
+## 🔄 Updates
+
+PvFlasher checks for a new release once a day and offers to install it; turn this off or check manually from the gear icon's **Updates** setting, or run `pvflasher update` (`--check` to only look).
+
+Updates are downloaded from the GitHub release and installed only if their [minisign](https://jedisct1.github.io/minisign/) signature matches the release key built into PvFlasher (key ID `B711C321FA6FF262`). The AppImage, the `.tar.xz`/install-script binary and the Windows and macOS apps replace themselves and restart; copies installed with `deb`, `rpm` or `pacman` are left to your package manager.
 
 ## 📚 Documentation
 

@@ -363,6 +363,15 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
       - name: Download Linux artifacts
         uses: actions/download-artifact@v4
         with:
@@ -390,6 +399,20 @@ jobs:
       - name: List downloaded artifacts
         run: find release -type f -ls
 
+      # Self-updater: sign every update bundle with the minisign key and write
+      # latest.json (Tauri format), read by the app from releases/latest.
+      - name: Sign update bundles
+        if: ${{ !contains(github.ref, '-rc') && !contains(github.ref, '-beta') && !contains(github.ref, '-alpha') }}
+        env:
+          UPDATER_PRIVATE_KEY: ${{ secrets.UPDATER_PRIVATE_KEY }}
+        run: |
+          go run ./tools/updater \
+            --version "${GITHUB_REF_NAME}" \
+            --base-url "https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}" \
+            --changelog CHANGELOG.md \
+            --out release/latest.json \
+            release/linux/* release/windows/* release/darwin/*
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -401,6 +424,9 @@ jobs:
             release/linux/*.tar.zst
             release/windows/*.zip
             release/darwin/*.zip
+            release/*/*.sig
+            release/latest.json
+          fail_on_unmatched_files: false
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
