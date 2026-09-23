@@ -1,0 +1,15 @@
+tool,run,seconds
+"dd (bs=4M, fsync)",1,52.56
+bmaptool 3.9.0,1,28.52
+pvflasher (no verify),1,29.59
+pvflasher (verify),1,33.67
+Raspberry Pi Imager (no verify),1,38.85
+Raspberry Pi Imager (verify),1,45.23
+"dd (bs=4M, fsync)",2,52.50
+bmaptool 3.9.0,2,26.78
+pvflasher (no verify),2,27.84
+pvflasher (verify),2,33.33
+Raspberry Pi Imager (no verify),2,36.74
+Raspberry Pi Imager (verify),2,45.24
+balena CLI 25.2.6 (etcher-sdk),1,78.44
+balena CLI 25.2.6 (etcher-sdk),2,78.67
