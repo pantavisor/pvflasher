@@ -2,6 +2,7 @@ package pantavisor
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -10,7 +11,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -74,11 +79,13 @@ type Docs struct {
 }
 
 type DeviceRelease struct {
-	Name       string   `json:"name"`
-	FullImage  Artifact `json:"full_image"`
-	PVRExports Artifact `json:"pvrexports"`
-	BSP        Artifact `json:"bsp"`
-	SDK        Artifact `json:"sdk,omitempty"`
+	Name        string   `json:"name"`
+	DisplayName string   `json:"display_name,omitempty"`
+	Description string   `json:"description,omitempty"`
+	FullImage   Artifact `json:"full_image"`
+	PVRExports  Artifact `json:"pvrexports"`
+	BSP         Artifact `json:"bsp"`
+	SDK         Artifact `json:"sdk,omitempty"`
 }
 
 // ReleaseWrapper handles the JSON structure for a release version. A version
@@ -178,32 +185,91 @@ func FetchReleases() (Releases, error) {
 	return releases, nil
 }
 
-// GetChannels returns sorted list of channels
+// Title returns the board's official display name, falling back to its
+// machine name for releases that predate display names.
+func (d DeviceRelease) Title() string {
+	if d.DisplayName != "" {
+		return d.DisplayName
+	}
+	return d.Name
+}
+
+// channelOrder and channelLabels match the naming on pantavisor.io/downloads.
+var (
+	channelOrder  = []string{"stable", "release-candidate"}
+	channelLabels = map[string]string{
+		"stable":            "Stable (Recommended)",
+		"release-candidate": "Release Candidate",
+	}
+)
+
+// ChannelLabel returns the user-facing name of a channel.
+func ChannelLabel(channel string) string {
+	if l, ok := channelLabels[channel]; ok {
+		return l
+	}
+	return channel
+}
+
+// GetChannels returns the channels, known ones first in website order.
 func (r Releases) GetChannels() []string {
 	keys := make([]string, 0, len(r))
 	for k := range r {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	rank := func(c string) int {
+		if i := slices.Index(channelOrder, c); i >= 0 {
+			return i
+		}
+		return len(channelOrder)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if ri, rj := rank(keys[i]), rank(keys[j]); ri != rj {
+			return ri < rj
+		}
+		return keys[i] < keys[j]
+	})
 	return keys
 }
 
-// GetVersions returns sorted list of versions for a channel (descending)
+// GetVersions returns the versions of a channel that have devices, newest first.
 func (r Releases) GetVersions(channel string) []string {
 	versionsMap, ok := r[channel]
 	if !ok {
 		return nil
 	}
 	keys := make([]string, 0, len(versionsMap))
-	for k := range versionsMap {
-		keys = append(keys, k)
+	for k, v := range versionsMap {
+		if len(v.Devices) > 0 {
+			keys = append(keys, k)
+		}
 	}
-	// Sort descending (assuming versions are comparable strings, or just alphanumeric)
-	// For better sorting, we might need semantic version parsing, but string sort is a start.
 	sort.Slice(keys, func(i, j int) bool {
-		return keys[i] > keys[j] // Descending
+		return compareVersions(keys[i], keys[j]) > 0 // Descending
 	})
 	return keys
+}
+
+var versionChunk = regexp.MustCompile(`\d+|\D+`)
+
+// compareVersions orders versions like "028-rc9" < "028-rc10" < "028-rc10.1"
+// by comparing digit runs numerically and everything else lexically.
+func compareVersions(a, b string) int {
+	ca, cb := versionChunk.FindAllString(a, -1), versionChunk.FindAllString(b, -1)
+	for i := 0; i < len(ca) && i < len(cb); i++ {
+		na, errA := strconv.Atoi(ca[i])
+		nb, errB := strconv.Atoi(cb[i])
+		if errA == nil && errB == nil {
+			if na != nb {
+				return na - nb
+			}
+			continue
+		}
+		if c := strings.Compare(ca[i], cb[i]); c != 0 {
+			return c
+		}
+	}
+	return len(ca) - len(cb)
 }
 
 type DownloadProgress struct {
@@ -221,15 +287,23 @@ func DownloadFile(url string, destPath string, progressCb func(DownloadProgress)
 
 // DownloadFileWithSHA downloads a file and validates its SHA256 checksum
 func DownloadFileWithSHA(url string, destPath string, expectedSHA256 string, progressCb func(DownloadProgress)) error {
+	return DownloadFileWithSHAContext(context.Background(), url, destPath, expectedSHA256, progressCb)
+}
+
+// DownloadFileWithSHAContext is DownloadFileWithSHA with cancellation.
+func DownloadFileWithSHAContext(ctx context.Context, url string, destPath string, expectedSHA256 string, progressCb func(DownloadProgress)) error {
 	const maxRetries = 3
 	var lastErr error
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		err := downloadWithValidation(url, destPath, expectedSHA256, progressCb, attempt)
+		err := downloadWithValidation(ctx, url, destPath, expectedSHA256, progressCb, attempt)
 		if err == nil {
 			return nil
 		}
 		lastErr = err
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 
 		// If it's a validation error, don't retry
 		if _, ok := err.(*SHA256MismatchError); ok {
@@ -255,13 +329,17 @@ func (e *SHA256MismatchError) Error() string {
 	return fmt.Sprintf("SHA256 mismatch: expected %s, got %s", e.Expected, e.Actual)
 }
 
-func downloadWithValidation(url string, destPath string, expectedSHA256 string, progressCb func(DownloadProgress), attempt int) error {
+func downloadWithValidation(ctx context.Context, url string, destPath string, expectedSHA256 string, progressCb func(DownloadProgress), attempt int) error {
 	// Create HTTP client with timeout
 	client := &http.Client{
 		Timeout: 30 * time.Minute, // Long timeout for large files
 	}
 
-	resp, err := client.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
@@ -346,7 +424,7 @@ func (pr *ProgressReader) Read(p []byte) (int, error) {
 		if pr.Total > 0 {
 			percent = float64(pr.Downloaded) / float64(pr.Total) * 100
 		}
-		
+
 		speed := 0.0
 		elapsed := time.Since(pr.StartTime).Seconds()
 		if elapsed > 0 {
