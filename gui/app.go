@@ -262,8 +262,9 @@ func (a *App) buildFooter() fyne.CanvasObject {
 	a.logo.FillMode = canvas.ImageFillContain
 	a.logo.SetMinSize(fyne.NewSize(96, 20))
 
-	ver := widget.NewLabel(versionText())
-	ver.Importance = widget.LowImportance
+	// The version opens Settings, which shows the latest version too.
+	ver := widget.NewHyperlink(versionText(), nil)
+	ver.OnTapped = a.showSettingsDialog
 	ver.SizeName = theme.SizeNameCaptionText
 
 	// Shown once an update is found; opens the update dialog.
@@ -525,9 +526,6 @@ func (a *App) showSettingsDialog() {
 	help := widget.NewHyperlink("Troubleshooting guide",
 		mustParseURL("https://github.com/pantavisor/pvflasher/blob/main/docs/TROUBLESHOOTING.md"))
 
-	ver := widget.NewLabel("PvFlasher " + versionText())
-	ver.Importance = widget.LowImportance
-
 	config, _ := util.LoadConfig()
 	autoUpdate := widget.NewCheck("Check for updates automatically", func(on bool) {
 		c, _ := util.LoadConfig()
@@ -535,22 +533,24 @@ func (a *App) showSettingsDialog() {
 		_ = util.SaveConfig(c)
 	})
 	autoUpdate.SetChecked(!config.DisableUpdateCheck)
-	checkNow := widget.NewButton("Check Now", func() { go a.checkForUpdates(true) })
-	updates := container.NewVBox(autoUpdate, container.NewHBox(checkNow))
 	if !update.IsReleaseVersion(version.Version) {
 		autoUpdate.Disable()
-		checkNow.Disable()
-		note := widget.NewLabel("Updates are off for development builds.")
-		note.Importance = widget.LowImportance
-		updates.Add(note)
 	}
 
 	form := widget.NewForm(
 		widget.NewFormItem("Appearance", appearance),
-		widget.NewFormItem("Updates", updates),
 		widget.NewFormItem("Help", help),
 	)
-	d := dialog.NewCustom("Settings", "Close", container.NewVBox(form, ver), a.window)
+	var d dialog.Dialog
+	updatesTitle := widget.NewLabelWithStyle("Updates", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	updates := a.updatesPanel(func() { d.Hide() })
+	d = dialog.NewCustom("Settings", "Close", container.NewVBox(
+		form,
+		widget.NewSeparator(),
+		updatesTitle,
+		updates,
+		autoUpdate,
+	), a.window)
 	d.Resize(fyne.NewSize(420, 0))
 	d.Show()
 }

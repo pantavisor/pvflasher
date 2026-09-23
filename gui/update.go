@@ -38,35 +38,118 @@ func (a *App) maybeCheckForUpdates() {
 // checkForUpdates queries the manifest. A manual check reports every
 // outcome; the automatic one only surfaces an update the user hasn't skipped.
 func (a *App) checkForUpdates(manual bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	rel, err := update.Check(ctx, version.Version)
-
-	config, _ := util.LoadConfig()
-	if err == nil {
-		config.LastUpdateCheck = time.Now()
-		_ = util.SaveConfig(config)
-	}
-
+	st, err := a.fetchUpdateStatus()
 	fyne.Do(func() {
 		switch {
 		case err != nil:
 			if manual {
 				dialog.ShowError(err, a.window)
 			}
-		case rel == nil:
+		case st.Update == nil:
 			if manual {
 				dialog.ShowInformation("No Updates", "PvFlasher "+versionText()+" is the latest version.", a.window)
 			}
 		default:
-			a.pendingUpdate = rel
-			a.updateLink.SetText("Update available: v" + rel.Version)
-			a.updateLink.Show()
-			if manual || config.SkippedVersion != rel.Version {
+			config, _ := util.LoadConfig()
+			if manual || config.SkippedVersion != st.Update.Version {
 				a.showUpdateDialog()
 			}
 		}
 	})
+}
+
+// fetchUpdateStatus checks the latest release and records the result: an
+// available update shows the footer link.
+func (a *App) fetchUpdateStatus() (*update.Status, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	st, err := update.Check(ctx, version.Version)
+	if err != nil {
+		return nil, err
+	}
+	config, _ := util.LoadConfig()
+	config.LastUpdateCheck = time.Now()
+	_ = util.SaveConfig(config)
+
+	fyne.Do(func() {
+		a.pendingUpdate = st.Update
+		if st.Update != nil {
+			a.updateLink.SetText("Update available: v" + st.Update.Version)
+			a.updateLink.Show()
+		} else {
+			a.updateLink.Hide()
+		}
+	})
+	return st, nil
+}
+
+// updatesPanel is the Settings section showing the running and latest
+// versions, with the update action when one is available.
+func (a *App) updatesPanel(closeSettings func()) fyne.CanvasObject {
+	current := widget.NewLabelWithStyle(versionText(), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	latest := widget.NewLabel("Checking…")
+	state := widget.NewLabel("")
+	state.Importance = widget.LowImportance
+	state.SizeName = theme.SizeNameCaptionText
+	state.Wrapping = fyne.TextWrapWord
+	spinner := widget.NewActivity()
+	spinner.Start()
+
+	action := widget.NewButton("Check Again", nil)
+	action.Disable()
+
+	var refresh func()
+	show := func(st *update.Status, err error) {
+		spinner.Stop()
+		spinner.Hide()
+		action.Enable()
+		action.Importance = widget.MediumImportance
+		action.SetText("Check Again")
+		action.OnTapped = refresh
+		switch {
+		case err != nil:
+			latest.SetText("Unknown")
+			state.SetText("Couldn't reach the update server. Check your connection.")
+		case st.DevBuild:
+			latest.SetText("v" + st.Latest)
+			state.SetText("This is a development build, so it doesn't update.")
+		case st.Update == nil:
+			latest.SetText("v" + st.Latest)
+			state.SetText("PvFlasher is up to date.")
+		default:
+			latest.SetText("v" + st.Latest)
+			if st.Update.Install.CanSelfUpdate {
+				state.SetText("An update is available.")
+			} else {
+				state.SetText("An update is available. This copy is managed by " + st.Update.Install.Reason + ".")
+			}
+			action.Importance = widget.HighImportance
+			action.SetText("Update to v" + st.Update.Version + "…")
+			action.OnTapped = func() {
+				closeSettings()
+				a.showUpdateDialog()
+			}
+		}
+		action.Refresh()
+	}
+	refresh = func() {
+		latest.SetText("Checking…")
+		state.SetText("")
+		spinner.Show()
+		spinner.Start()
+		action.Disable()
+		go func() {
+			st, err := a.fetchUpdateStatus()
+			fyne.Do(func() { show(st, err) })
+		}()
+	}
+	refresh()
+
+	grid := widget.NewForm(
+		widget.NewFormItem("Current version", current),
+		widget.NewFormItem("Latest version", container.NewHBox(latest, spinner)),
+	)
+	return container.NewVBox(grid, state, container.NewHBox(action))
 }
 
 // showUpdateDialog presents the release notes and the install choice.

@@ -85,22 +85,33 @@ func FetchManifest(ctx context.Context, url string) (*Manifest, error) {
 	return &m, nil
 }
 
-// Check returns the release to update to, or nil when current is up to date.
-// Installs that cannot update themselves still get a Release (with
+// Status is the result of an update check.
+type Status struct {
+	Current string   // running version
+	Latest  string   // newest published version, without "v"
+	Update  *Release // nil when up to date or when this build can't update
+	// DevBuild is set for development builds, which never update.
+	DevBuild bool
+}
+
+// Check compares the running version with the latest release. Installs that
+// cannot update themselves still get Status.Update (with
 // Install.CanSelfUpdate false) so the user can be told about it.
-func Check(ctx context.Context, current string) (*Release, error) {
-	if !IsReleaseVersion(current) {
-		return nil, fmt.Errorf("updates are disabled for development builds (%s)", current)
-	}
+func Check(ctx context.Context, current string) (*Status, error) {
 	m, err := FetchManifest(ctx, ManifestURL)
 	if err != nil {
 		return nil, err
 	}
-	if CompareVersions(m.Version, current) <= 0 {
-		return nil, nil
+	st := &Status{
+		Current:  current,
+		Latest:   strings.TrimPrefix(m.Version, "v"),
+		DevBuild: !IsReleaseVersion(current),
+	}
+	if st.DevBuild || CompareVersions(m.Version, current) <= 0 {
+		return st, nil
 	}
 	inst := DetectInstall()
-	rel := &Release{Version: strings.TrimPrefix(m.Version, "v"), Notes: m.Notes, Install: inst}
+	rel := &Release{Version: st.Latest, Notes: m.Notes, Install: inst}
 	rel.PubDate, _ = time.Parse(time.RFC3339, m.PubDate)
 	if inst.CanSelfUpdate {
 		asset, ok := m.Platforms[inst.PlatformKey()]
@@ -111,7 +122,8 @@ func Check(ctx context.Context, current string) (*Release, error) {
 		}
 		rel.Asset = asset
 	}
-	return rel, nil
+	st.Update = rel
+	return st, nil
 }
 
 // Arch returns the architecture in Tauri's naming.

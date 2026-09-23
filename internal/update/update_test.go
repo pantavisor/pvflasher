@@ -162,17 +162,17 @@ func TestCheckFindsUpdate(t *testing.T) {
 	ManifestURL = f.srv.URL + "/latest.json"
 	t.Cleanup(func() { ManifestURL = old })
 
-	rel, err := Check(t.Context(), "v0.0.11")
+	st, err := Check(t.Context(), "v0.0.11")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rel == nil || rel.Version != "0.0.12" {
-		t.Fatalf("Check = %+v, want 0.0.12", rel)
+	if st.Latest != "0.0.12" || st.Update == nil || st.Update.Version != "0.0.12" {
+		t.Fatalf("Check = %+v, want an update to 0.0.12", st)
 	}
-	if rel, _ := Check(t.Context(), "v0.0.12"); rel != nil {
-		t.Errorf("up-to-date install got update %+v", rel)
+	if st, _ := Check(t.Context(), "v0.0.12"); st.Update != nil || st.Latest != "0.0.12" {
+		t.Errorf("up-to-date install: %+v", st)
 	}
-	if _, err := Check(t.Context(), "development"); err == nil {
-		t.Error("development build was offered updates")
+	if st, _ := Check(t.Context(), "development"); !st.DevBuild || st.Update != nil || st.Latest != "0.0.12" {
+		t.Errorf("development build: %+v", st)
 	}
 }
