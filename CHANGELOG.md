@@ -1,8 +1,22 @@
 
+<a name="v1.2.0"></a>
+## [v1.2.0](https://github.com/pantavisor/pvflasher/compare/v1.1.3...v1.2.0)
+
+> 2026-09-24
+
+### Feature
+
+* add a macOS DMG and a Windows installer
+
+
 <a name="v1.1.3"></a>
 ## [v1.1.3](https://github.com/pantavisor/pvflasher/compare/v1.1.2...v1.1.3)
 
 > 2026-09-23
+
+### Chore
+
+* update changelog for v1.1.3
 
 ### Ci
 
