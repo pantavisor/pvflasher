@@ -73,6 +73,18 @@ Images are cached locally to avoid redundant downloads:
 
 ## 📥 Installation
 
+### Download
+
+Get the latest release from the [releases page](https://github.com/pantavisor/pvflasher/releases/latest):
+
+| Platform | Download | Install |
+| :--- | :--- | :--- |
+| **macOS** | `PvFlasher-vX.Y.Z-arm64.dmg` (Apple Silicon) or `-x86_64.dmg` (Intel) | Open the DMG and drag PvFlasher to Applications. Signed and notarized by Apple. |
+| **Windows** | `PvFlasher-Setup-vX.Y.Z-x86_64.exe` (or `-aarch64` for ARM) | Run the installer. No administrator rights needed to install; PvFlasher asks for them when it flashes. |
+| **Linux** | `PvFlasher-vX.Y.Z-x86_64.AppImage`, `.deb`, `.rpm`, `.pkg.tar.zst` or `.tar.xz` | Run the AppImage, or install the package for your distribution. |
+
+The macOS app, the Windows installer, the AppImage and the `.tar.xz` build keep themselves up to date (see [Updates](#-updates)).
+
 ### Quick Install
 
 **Linux / macOS:**

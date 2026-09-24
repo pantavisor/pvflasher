@@ -235,6 +235,15 @@ jobs:
       - name: Build Windows release assets
         run: make release-ci-windows VERSION=${{ steps.version.outputs.version }}
 
+      - name: Build Windows installers
+        run: |
+          sudo apt-get update && sudo apt-get install -y nsis imagemagick
+          for arch in amd64:x86_64 arm64:aarch64; do
+            go_arch=${arch%%:*}; rel_arch=${arch##*:}
+            bash packaging/windows/build-nsis.sh "${{ steps.version.outputs.version }}" "$rel_arch" \
+              "release/windows-${go_arch}/pvflasher.exe" release/windows
+          done
+
       - name: List release artifacts
         run: find release -type f -ls
 
@@ -298,20 +307,6 @@ jobs:
             [ "$minos" = "11.0" ] && [ "$plist" = "11.0" ] || { echo "::error::$bin requires macOS $minos"; exit 1; }
           done
 
-      - name: Zip unsigned apps if no signing
-        if: env.HAS_APPLE_SIGNING != 'true'
-        run: |
-          cd release/darwin
-          for dir in pvflasher-darwin-*/; do
-            if [ -d "$dir" ]; then
-              name=$(basename "$dir")
-              if [ ! -f "${name}.zip" ]; then
-                zip -X -r "${name}.zip" "$name"
-                rm -rf "$name"
-              fi
-            fi
-          done
-
       - name: Import Apple Certificate
         if: env.HAS_APPLE_SIGNING == 'true'
         uses: apple-actions/import-codesign-certs@v2
@@ -355,17 +350,41 @@ jobs:
             spctl -a -vv "$app"
           done
 
-      - name: Re-zip signed apps
+      # Drag-to-Applications disk images, built from the (signed, notarized) apps.
+      - name: Build DMGs
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          for dir in release/darwin/pvflasher-darwin-*/; do
+            arch=$(basename "$dir" | sed 's/pvflasher-darwin-//; s/amd64/x86_64/')
+            bash packaging/dmg/build-dmg.sh "$dir/pvflasher.app" "release/darwin/PvFlasher-${VERSION}-${arch}.dmg"
+          done
+
+      - name: Sign and notarize DMGs
         if: env.HAS_APPLE_SIGNING == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          for dmg in release/darwin/*.dmg; do
+            codesign --force --timestamp --sign "${{ secrets.APPLE_SIGNING_IDENTITY }}" "$dmg"
+            if [ "$HAS_APPLE_NOTARIZATION" = "true" ]; then
+              xcrun notarytool submit "$dmg" --wait \
+                --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
+              xcrun stapler staple "$dmg"
+              spctl -a -vv -t open --context context:primary-signature "$dmg"
+            fi
+          done
+
+      # The .zip files are the self-updater's bundles; keep publishing them.
+      - name: Zip apps
         run: |
           cd release/darwin
           for dir in pvflasher-darwin-*/; do
-            if [ -d "$dir" ]; then
-              name=$(basename "$dir")
-              zip -X -r "${name}.zip" "$name"
-              rm -rf "$name"
-              echo "Re-zipped signed: ${name}.zip"
-            fi
+            name=$(basename "$dir")
+            zip -X -r "${name}.zip" "$name"
+            rm -rf "$name"
           done
 
       - name: Smoke test macOS binary
@@ -465,7 +484,9 @@ jobs:
             release/linux/*.rpm
             release/linux/*.tar.zst
             release/windows/*.zip
+            release/windows/*.exe
             release/darwin/*.zip
+            release/darwin/*.dmg
             release/*/*.sig
             release/latest.json
           fail_on_unmatched_files: false
