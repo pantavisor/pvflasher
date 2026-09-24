@@ -7,8 +7,44 @@
 
 **Solution:**
 Writing to raw block devices requires root/administrator privileges.
-*   **Linux**: The CLI attempts to auto-elevate using `sudo`. Ensure you have sudo access. If using the GUI, a polkit dialog should appear.
-*   **Windows**: You **must** run the Command Prompt, PowerShell, or the GUI application as **Administrator**. Right-click the application or terminal and select "Run as administrator".
+*   **Linux**: The desktop app asks for your password through polkit when flashing starts; if no polkit agent is running it asks in its own dialog instead (sudo). The CLI auto-elevates with `sudo`. Make sure your user may use `sudo`.
+*   **macOS**: The desktop app asks for an administrator password when flashing starts. Your account must be an administrator.
+*   **Windows**: The desktop app shows a User Account Control prompt when flashing starts; accept it. For the CLI, run Command Prompt or PowerShell as **Administrator**.
+
+## My Drive Isn't in the Target List
+
+**Symptom:**
+The SD card or USB drive you want to flash doesn't appear in the desktop app.
+
+**Solution:**
+The desktop app hides drives it considers unsafe to erase. Click **Why are N drives hidden?** under the list to see each hidden drive and the reason:
+*   **Internal disk**: built-in disks are never offered.
+*   **In use by the system**: the drive has a volume mounted outside the usual removable-media folders (for example `/`, `/home` or `/mnt/data`). Unmount it if it really is the target.
+*   **No media inserted**: an empty card reader, or a card that was ejected. Re-insert the card.
+
+The list refreshes by itself; click ↻ to refresh right away. The CLI (`pvflasher list` and `pvflasher copy`) doesn't hide anything, so double-check the device path there.
+
+## macOS: "PvFlasher" Can't Be Opened
+
+**Symptom:**
+macOS says the app "cannot be opened", "is damaged" or "Not Opened: Apple could not verify…", or nothing happens when you open it.
+
+**Solution:**
+*   Use the **DMG** from the releases page (v1.2.0 or later); the app and DMG are signed and notarized by Apple. Builds before v1.1.3 were not notarized: allow them once in **System Settings → Privacy & Security → Open Anyway**, or better, update.
+*   PvFlasher needs **macOS 11 (Big Sur) or later**. Builds before v1.1.2 wrongly required a very recent macOS and fail to open with error `-10825`; download the current release.
+
+## Updates Don't Install
+
+**Symptom:**
+PvFlasher shows an update but offers **Open Download Page** instead of **Install and Restart**, or `pvflasher update` says "this copy can't update itself".
+
+**Solution:**
+The app can only replace itself when it can write to its own folder:
+*   **Installed with a package manager** (`.deb`, `.rpm`, `pacman`): update with the package manager, or install the new package from the releases page.
+*   **macOS app run from Downloads**: macOS runs it from a temporary read-only copy. Move **PvFlasher** into **Applications** and open it from there.
+*   **Installed in a system folder** (for example `/usr/local/bin` or `C:\Program Files`): reinstall with the Windows installer, the AppImage or the install script, which install per user.
+
+If the update check itself fails ("Couldn't reach the update server"), check your internet connection or proxy: updates come from `github.com`. Updates are also turned off in development builds.
 
 ## Image Type Not Recognized
 

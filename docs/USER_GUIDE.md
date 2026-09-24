@@ -1,142 +1,139 @@
 # User Guide
 
-This guide provides detailed instructions for using **pvflasher** via both the CLI and GUI.
+This guide covers installing **pvflasher** and using it from the desktop app and the command line.
 
-## 🖥️ CLI Usage
+## 📥 Installing
 
-The Command Line Interface (CLI) is designed for efficiency and automation.
+Download the latest release from the [releases page](https://github.com/pantavisor/pvflasher/releases/latest):
 
-### `pvflasher list`
+| Platform | File | How to install |
+| :--- | :--- | :--- |
+| **macOS** | `PvFlasher-vX.Y.Z-arm64.dmg` (Apple Silicon) or `-x86_64.dmg` (Intel) | Open the DMG and drag **PvFlasher** into **Applications**. The app is signed and notarized by Apple. Requires macOS 11 or later. |
+| **Windows** | `PvFlasher-Setup-vX.Y.Z-x86_64.exe` (or `-aarch64.exe`) | Run the installer. It installs for your user in `%LOCALAPPDATA%\Programs\PvFlasher` and needs no administrator rights. |
+| **Linux** | `PvFlasher-vX.Y.Z-x86_64.AppImage` (or `-aarch64`) | Make it executable (`chmod +x`) and run it. |
+| **Linux packages** | `.deb`, `.rpm`, `.pkg.tar.zst` | Install with your package manager (`apt`, `dnf`, `pacman`). |
+| **Any** | `.tar.xz` / `.zip` archives, or the [install script](../README.md#quick-install) | Unpack and run the `pvflasher` binary. |
 
-Lists all available block devices on the system. It filters for removable devices where possible and indicates if a device is currently mounted.
+Flashing always needs administrator rights, whichever way you install. PvFlasher asks for them when it starts writing: a password prompt on Linux and macOS, a User Account Control prompt on Windows.
 
-**Example:**
-```bash
-$ pvflasher list
-Available devices:
-- /dev/sdb: SanDisk Ultra 16GB (Removable) [15931539456 bytes]
-- /dev/sdc: Generic Flash Disk (Removable) [Mounted: /media/user/USB] [8053063680 bytes]
-```
+## 🖥️ Desktop App
 
----
+![PvFlasher main window](../screenshot.png)
 
-### `pvflasher copy`
+Run **PvFlasher** from your applications menu, or `pvflasher` with no arguments. The window has three steps.
 
-Writes an image file to a target device.
+### 1. Image
 
-**Syntax:**
-```bash
-pvflasher copy [flags] <image_path> <device_path>
-```
+*   **Choose File…** opens a file dialog. You can also drag an image file onto the window. Supported: `.img`, `.iso`, `.wic`, and compressed `.gz`, `.bz2`, `.xz`, `.zst`, `.zip`, `.tar`, `.tgz`.
+*   If a `.bmap` file sits next to the image (for example `system.img.bmap` for `system.img.gz`), PvFlasher uses it and only writes the blocks that hold data. The card shows whether a block map was found.
+*   **Pantavisor Release…** opens the official release picker. Choose the channel, version and device, using the same names as [pantavisor.io/downloads](https://pantavisor.io/downloads/). The image is downloaded and checksum-verified when flashing starts.
 
-**Arguments:**
-*   `<image_path>`: Path to the source image (supports raw `.img`, `.iso`, `.wic` or compressed `.gz`, `.xz`, `.bz2`, `.zst`, `.zip`).
-*   `<device_path>`: Path to the target block device (e.g., `/dev/sdX` on Linux, `\\.\PhysicalDriveN` on Windows).
+### 2. Target
 
-### Windows Considerations
+*   Pick the SD card or USB drive from the list. The list refreshes by itself when drives are plugged in or removed; the ↻ button refreshes it immediately.
+*   To protect your computer, PvFlasher never offers internal disks, drives in use by the system (for example a USB disk mounted at `/home`) or empty card readers. **Why are N drives hidden?** lists them and gives the reason for each one.
+*   A drive mounted by your desktop, such as a freshly inserted SD card, is shown with "mounted". It is unmounted before writing.
 
-When using **pvflasher** on Windows, keep the following in mind:
+### 3. Flash
 
-1.  **Administrator Privileges**: Writing to physical drives requires elevated rights. Always run your terminal (for CLI) or the application (for GUI) as Administrator.
-2.  **Device Paths**: Devices are identified using the `\\.\PhysicalDriveN` syntax. Use `pvflasher list` to find the correct index `N`.
-3.  **Volume Dismounting**: pvflasher automatically attempts to dismount all volumes on the target disk before flashing to ensure exclusive access.
+*   **Verify after writing** reads the written data back from the card and checks it. Keep it on unless you are in a hurry.
+*   **Eject when finished** ejects the card when it's done, so it can be removed safely.
+*   **Unmount without asking** skips the question about mounted volumes.
+*   **Flash** asks you to confirm which drive will be erased, then asks for administrator rights and starts.
 
-**Flags:**
-*   `--bmap <path>`: Explicitly specify the path to a `.bmap` file. If not provided, pvflasher attempts to find a file with the same name as the image (e.g., `image.img.bmap` for `image.img.gz`).
-*   `--force`: Allow writing to mounted devices or devices that appear to be system drives. **Use with caution.**
-*   `--no-verify`: Skip the checksum verification step after flashing. Faster, but less safe.
-*   `--no-eject`: Do not eject/unmount the device after flashing completes.
-*   `--json`: Output progress and result in JSON format (useful for wrapping pvflasher in other tools).
-
-**Examples:**
-
-*   **Standard Flash (Auto-detect bmap):**
-    ```bash
-    pvflasher copy ubuntu-22.04.img.gz /dev/sdb
-    ```
-
-*   **Flash with Explicit Bmap:**
-    ```bash
-    pvflasher copy --bmap custom.bmap system.img /dev/sdc
-    ```
-
-*   **Flash Raw (No Bmap):**
-    If no bmap is found or provided, pvflasher will perform a standard raw copy (dd-style), skipping empty blocks if sparse file detection is successful.
-
----
-
-
-### `pvflasher create`
-
-Generates a `.bmap` file from an existing sparse image file. This is useful if you have a raw image and want to benefit from faster flashing in the future.
-
-**Syntax:**
-```bash
-pvflasher create [flags] <image_path>
-```
-
-**Flags:**
-*   `-o, --output <path>`: Output filename for the bmap. Defaults to `<image_path>.bmap`.
-
-**Example:**
-```bash
-pvflasher create my-backup.img
-```
-
----
-
-
-### `pvflasher verify`
-
-Verifies the content of a device against a bmap file to ensure data integrity.
-
-**Syntax:**
-```bash
-pvflasher verify [flags] <device_path>
-```
-
-**Flags:**
-*   `--bmap <path>`: Path to the bmap file to verify against.
-
----
-
-
-## 🖥️ GUI Usage
-
-The Graphical User Interface provides a simple 3-step process.
-
-1.  **Launch**: Run the `pvflasher` executable (or `pvflasher-gui` if built separately).
-2.  **Select Image**:
-    *   **Local File**: Click the "Select Image" area or drag and drop your image file. pvflasher will automatically look for a corresponding `.bmap` file.
-    *   **Pantavisor**: Switch to the "Pantavisor" tab to browse official releases. Select the channel, version, and target device. The image will be downloaded automatically when you start the flash process.
-3.  **Select Target**:
-    *   Choose your USB drive from the dropdown list.
-    *   The list automatically refreshes when devices are plugged/unplugged.
-4.  **Flash**:
-    *   Click "Flash".
-    *   If you selected a Pantavisor image, it will be downloaded first.
-    *   You will be prompted for your password (sudo/admin) to authorize the write operation.
-    *   Watch the progress bar as it goes through Reading/Downloading -> Writing -> Verifying phases.
-
-### Pantavisor Features in GUI
-
-The Pantavisor tab allows you to:
-*   **Auto-fetch**: Connects to Pantavisor CI to get the latest available images.
-*   **Caching**: Downloaded images are cached locally to speed up future flashes.
-*   **SHA256 Validation**: Automatically verifies the integrity of the downloaded image before flashing.
-
-#### Managing the Image Cache
-
-Downloaded Pantavisor images are stored in a local cache directory. If you want to free up disk space or force a fresh download, you can manually clean this directory:
-
-*   **Linux/macOS**: `~/.pvflasher/images/`
-*   **Windows**: `%USERPROFILE%\.pvflasher\images\`
-
-To clean the cache, simply delete the files inside these directories.
+While flashing, PvFlasher shows the phase (downloading, writing, verifying, finishing), speed, time left and bytes written. **Cancel** asks before stopping, because an interrupted card won't boot until it is flashed again. When it's done you get the statistics (data written, duration, speed, method, verification) and a **View Log** button; **Flash Another** keeps the image and lets you pick the next card.
 
 ### Settings
 
-The GUI includes a settings dialog accessible from the gear icon in the top-right corner.
+The gear icon in the top-right corner opens Settings:
 
-*   **Theme**: Switch between light and dark mode.
-*   **Troubleshooting Guide**: Open the online troubleshooting documentation from the settings dialog.
+*   **Appearance**: follow the system's light or dark mode, or force Light or Dark.
+*   **Updates**: your version, the latest release, and **Update to vX…** when there is one. See [Updates](#-updates).
+*   **Help**: a link to the [troubleshooting guide](TROUBLESHOOTING.md).
+
+## 🔄 Updates
+
+PvFlasher checks for a new release once a day. When there is one, it shows **Update available: vX** in the bottom-right corner and a dialog with the release notes and three choices: **Install and Restart**, **Later** and **Skip This Version**. Clicking the version number in the corner opens the **Updates** section of Settings, where you can check again or turn automatic checks off.
+
+Every update is checked against Pantacor's signing key before it is installed, and PvFlasher never updates while it is flashing.
+
+| How PvFlasher was installed | What happens |
+| :--- | :--- |
+| macOS app in Applications | Updates itself and restarts. |
+| Windows installer | Updates itself and restarts. |
+| Linux AppImage, `.tar.xz` or install script | Updates itself and restarts. |
+| `.deb`, `.rpm`, `pacman` | Shows the update; install it with your package manager. |
+| macOS app run straight from Downloads | Shows the update; move PvFlasher to Applications to let it update itself. |
+
+From the command line, use `pvflasher version` and `pvflasher update` (below).
+
+## ⌨️ Command Line
+
+Run `pvflasher <command> --help` for all flags.
+
+### `pvflasher list`
+
+Lists the block devices on the system with their size and mount points. Unlike the desktop app, it lists every disk, including internal ones, so double-check the device before writing to it.
+
+```console
+$ pvflasher list
+Available devices:
+- /dev/sda: GoPro Quik_Key (Removable)  [31914983424 bytes]
+- /dev/sdb: ASMT ASM236X_NVME  [Mounted: /home/projects] [1024209543168 bytes]
+```
+
+### `pvflasher copy <image> <device>`
+
+Writes an image to a device, using a `.bmap` file when one is found next to the image.
+
+```bash
+pvflasher copy ubuntu-24.04.img.xz /dev/sdX
+pvflasher copy --bmap custom.bmap system.img /dev/sdX
+```
+
+| Flag | Meaning |
+| :--- | :--- |
+| `--bmap <path>` | Use this block map instead of looking for one next to the image. |
+| `--no-verify` | Skip reading the data back after writing. |
+| `--no-eject` | Don't eject the device when done. |
+| `--force` | Write even if the device has mounted volumes. **Use with care.** |
+| `--json` | Print progress and the result as JSON, for scripts. |
+
+On Windows, devices are named `\\.\PhysicalDriveN`; use `pvflasher list` to find `N`. Run the terminal as Administrator.
+
+### `pvflasher install` and `pvflasher download`
+
+Interactive helpers for official Pantavisor images: pick the channel, version and device from a menu. `install` downloads and flashes (it accepts `--no-verify`, `--no-eject` and `--force`); `download` only saves the image (`-o` to choose where; the default is the cache).
+
+### `pvflasher create <image>`
+
+Creates a `.bmap` block map for a raw image, so future flashes only write the blocks that hold data. `-o` sets the output file (default `<image>.bmap`), `-b` the block size (default 4096).
+
+### `pvflasher verify <device> <bmap-file>`
+
+Checks a device's contents against a block map, for example to test a card that was flashed earlier.
+
+### `pvflasher version` and `pvflasher update`
+
+`pvflasher version` shows your version and the latest release. `pvflasher update` shows both, lists what's new and asks before installing; `--yes` installs without asking and `--check` only looks. Copies installed with a package manager are not modified.
+
+```console
+$ pvflasher update
+Current version: v1.1.3
+Latest version:  v1.2.0 (update available)
+
+What's new in v1.2.0:
+  ### Feature
+  * add a macOS DMG and a Windows installer
+
+Update to v1.2.0 now? [y/N]
+```
+
+## 💾 Pantavisor Image Cache
+
+Downloaded Pantavisor images are kept so that flashing the same release again doesn't download it twice. Delete the files to free space or force a fresh download:
+
+*   **Linux / macOS**: `~/.pvflasher/images/`
+*   **Windows**: `%USERPROFILE%\.pvflasher\images\`
+
+Settings are stored in `~/.pvflasher/config.json` (`%USERPROFILE%\.pvflasher\config.json` on Windows).
