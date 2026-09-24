@@ -152,7 +152,9 @@ See the [User Guide](docs/USER_GUIDE.md) for full command documentation.
 
 ## 🔄 Updates
 
-PvFlasher checks for a new release once a day and offers to install it; turn this off or check manually from the gear icon's **Updates** setting, or run `pvflasher update` (`--check` to only look).
+PvFlasher checks for a new release once a day and offers to install it. The gear icon's **Updates** section (also opened by clicking the version in the bottom-right corner) shows your version and the latest one, and lets you update, check again or turn off automatic checks. From the command line, run `pvflasher version` to compare versions and `pvflasher update` to install the latest (`--check` to only look).
+
+<img src="docs/images/settings-updates.png" alt="Settings: current and latest version" width="460">
 
 Updates are downloaded from the GitHub release and installed only if their [minisign](https://jedisct1.github.io/minisign/) signature matches the release key built into PvFlasher (key ID `B711C321FA6FF262`). The AppImage, the `.tar.xz`/install-script binary and the Windows and macOS apps replace themselves and restart; copies installed with `deb`, `rpm` or `pacman` are left to your package manager.
 
