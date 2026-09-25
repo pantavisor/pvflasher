@@ -1,8 +1,28 @@
 
+<a name="v1.2.1"></a>
+## [v1.2.1](https://github.com/pantavisor/pvflasher/compare/v1.2.0...v1.2.1)
+
+> 2026-09-25
+
+### Docs
+
+* update the guides for the redesigned app, updater and installers
+* refresh the release picker, flashing and complete screenshots
+* refresh screenshots for v1.2.0
+
+### Feature
+
+* use the native file picker on macOS and Windows
+
+
 <a name="v1.2.0"></a>
 ## [v1.2.0](https://github.com/pantavisor/pvflasher/compare/v1.1.3...v1.2.0)
 
 > 2026-09-24
+
+### Chore
+
+* update changelog for v1.2.0
 
 ### Feature
 
