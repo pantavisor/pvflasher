@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -88,6 +89,26 @@ func (c *ImageCard) Build() fyne.CanvasObject {
 }
 
 func (c *ImageCard) showFileDialog() {
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		go func() {
+			path, ok, _ := pickImageNative()
+			fyne.Do(func() {
+				switch {
+				case !ok:
+					c.showFyneFileDialog() // native picker unavailable
+				case path != "":
+					c.SetLocalImage(path)
+				}
+			})
+		}()
+		return
+	}
+	c.showFyneFileDialog()
+}
+
+// showFyneFileDialog is Fyne's file dialog, which uses the desktop portal on
+// Linux and is the fallback elsewhere.
+func (c *ImageCard) showFyneFileDialog() {
 	d := dialog.NewFileOpen(func(uri fyne.URIReadCloser, err error) {
 		if err != nil || uri == nil {
 			return

@@ -116,6 +116,8 @@ func phaseTitle(phase string) string {
 	switch phase {
 	case "starting":
 		return "Preparing…"
+	case "extracting":
+		return "Extracting image…"
 	case "writing":
 		return "Writing image…"
 	case "verifying":
@@ -137,7 +139,7 @@ func phaseTitle(phase string) string {
 // writing/verifying phases have a known total and keep the normal bar.
 func indeterminatePhase(phase string) bool {
 	switch phase {
-	case "syncing", "ejecting":
+	case "extracting", "syncing", "ejecting":
 		return true
 	}
 	return false
@@ -155,12 +157,19 @@ func (s *ProgressScreen) UpdateProgress(p flash.Progress) {
 				s.InfiniteBar.Show()
 				s.InfiniteBar.Start()
 			}
-			if p.Phase == "syncing" {
+			switch p.Phase {
+			case "syncing":
 				s.SpeedLabel.SetText("Flushing buffers to the device — this can take a while")
-			} else {
+			case "extracting":
+				s.SpeedLabel.SetText("Unpacking the image from its archive")
+			default:
 				s.SpeedLabel.SetText("")
 			}
-			s.BytesLabel.SetText(util.FormatBytes(p.BytesProcessed) + " written")
+			if p.BytesProcessed > 0 {
+				s.BytesLabel.SetText(util.FormatBytes(p.BytesProcessed) + " written")
+			} else {
+				s.BytesLabel.SetText("")
+			}
 			return
 		}
 
