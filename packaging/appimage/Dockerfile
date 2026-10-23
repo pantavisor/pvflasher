@@ -37,11 +37,11 @@ RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \
         LINUXDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"; \
         APPIMAGETOOL_URL="https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"; \
-        GO_URL="https://go.dev/dl/go1.24.12.linux-amd64.tar.gz"; \
+        GO_URL="https://go.dev/dl/go1.26.10.linux-amd64.tar.gz"; \
     elif [ "$ARCH" = "aarch64" ]; then \
         LINUXDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-aarch64.AppImage"; \
         APPIMAGETOOL_URL="https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage"; \
-        GO_URL="https://go.dev/dl/go1.24.12.linux-arm64.tar.gz"; \
+        GO_URL="https://go.dev/dl/go1.26.10.linux-arm64.tar.gz"; \
     else \
         echo "Unsupported architecture: $ARCH" && exit 1; \
     fi && \
