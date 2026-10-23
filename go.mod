@@ -2,6 +2,8 @@ module pvflasher
 
 go 1.25.0
 
+toolchain go1.26.10
+
 require (
 	aead.dev/minisign v0.3.0
 	fyne.io/fyne/v2 v2.7.2
