@@ -1,0 +1,22 @@
+{{ define "main" }}
+<div class="wrap doc-grid">
+  <aside class="doc-side">
+    <nav aria-label="Guides">
+      <p class="eyebrow">Guides</p>
+      {{- range (site.GetPage "/docs").RegularPages.ByTitle }}
+      <a href="{{ .RelPermalink }}"{{ if eq . $ }} aria-current="page"{{ end }}>{{ partial "title.html" . }}</a>
+      {{- end }}
+    </nav>
+    {{- with .TableOfContents }}
+    <nav class="toc" aria-label="On this page">
+      <p class="eyebrow">On this page</p>
+      {{ . }}
+    </nav>
+    {{- end }}
+  </aside>
+  <article class="prose">
+    {{ .Content }}
+    <p class="edit"><a href="{{ site.Params.repo }}/blob/main/docs/{{ .File.LogicalName }}">Edit this page on GitHub</a></p>
+  </article>
+</div>
+{{ end }}

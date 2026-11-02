@@ -1,0 +1,32 @@
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div class="footer-brand">
+      <a href="https://pantacor.com/" aria-label="Pantacor">
+        <picture>
+          <source srcset="{{ (resources.Get "brand/pantacor-logo-dark.svg").RelPermalink }}" media="(prefers-color-scheme: dark)">
+          <img src="{{ (resources.Get "brand/pantacor-logo.svg").RelPermalink }}" alt="Pantacor" width="139" height="29">
+        </picture>
+      </a>
+      <p>pvflasher is open source under the MIT License. Built by Pantacor, the team behind Pantavisor.</p>
+    </div>
+    <nav aria-label="Project">
+      <h2>Project</h2>
+      <a href="{{ site.Params.repo }}">Source code</a>
+      <a href="{{ site.Params.repo }}/releases">Releases</a>
+      <a href="{{ site.Params.repo }}/blob/main/CHANGELOG.md">Changelog</a>
+      <a href="{{ site.Params.repo }}/issues">Report an issue</a>
+    </nav>
+    <nav aria-label="Guides">
+      <h2>Guides</h2>
+      <a href="{{ "docs/user_guide/" | relURL }}">User guide</a>
+      <a href="{{ "docs/troubleshooting/" | relURL }}">Troubleshooting</a>
+      <a href="{{ "docs/developer_guide/" | relURL }}">Developer guide</a>
+    </nav>
+    <nav aria-label="Pantacor">
+      <h2>Pantacor</h2>
+      <a href="https://pantavisor.io/">Pantavisor</a>
+      <a href="https://pantavisor.io/downloads/">Pantavisor downloads</a>
+      <a href="https://pantacor.com/">pantacor.com</a>
+    </nav>
+  </div>
+</footer>

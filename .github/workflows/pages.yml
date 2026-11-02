@@ -1,0 +1,83 @@
+name: Website
+
+# Builds the Hugo site in site/ and publishes it to GitHub Pages.
+# Pull requests only build it, to catch template or link errors before merge.
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', 'docs/**', 'screenshot.png', 'Icon.png', 'assets/pantacor-logo*.svg', '.github/workflows/pages.yml']
+  pull_request:
+    branches: [main]
+    paths: ['site/**', 'docs/**', 'screenshot.png', 'Icon.png', 'assets/pantacor-logo*.svg', '.github/workflows/pages.yml']
+  # A new release changes the download links baked into the page.
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  HUGO_VERSION: '0.168.0'
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Hugo
+        run: |
+          base="https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}"
+          tarball="hugo_${HUGO_VERSION}_linux-amd64.tar.gz"
+          curl -fsSLO "${base}/${tarball}"
+          curl -fsSL "${base}/hugo_${HUGO_VERSION}_checksums.txt" | grep " ${tarball}\$" | sha256sum -c -
+          tar -xzf "${tarball}" hugo
+          sudo mv hugo /usr/local/bin/
+          hugo version
+
+      - name: Configure Pages
+        id: pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Build
+        working-directory: site
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_URL: ${{ steps.pages.outputs.base_url || 'https://pantavisor.github.io/pvflasher' }}
+        run: |
+          # Bake in the latest release so download links work without JavaScript.
+          if tag="$(gh release view --repo "${GITHUB_REPOSITORY}" --json tagName -q .tagName)"; then
+            export HUGO_PARAMS_VERSION="${tag}"
+          fi
+          echo "Building for ${BASE_URL}/ with release ${HUGO_PARAMS_VERSION:-from hugo.toml}"
+          hugo --gc --minify --panicOnWarning --baseURL "${BASE_URL}/"
+
+      - name: Upload site
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/public
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

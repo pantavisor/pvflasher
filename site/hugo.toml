@@ -1,0 +1,60 @@
+baseURL = "https://pantavisor.github.io/pvflasher/"
+locale = "en"
+title = "pvflasher"
+disableKinds = ["taxonomy", "term", "RSS"]
+enableGitInfo = false
+
+[params]
+  description = "Open-source image flasher from Pantacor. Writes OS images to SD cards and USB drives, skips empty blocks with .bmap, and reads every written block back to verify it."
+  # Fallback release shown when the GitHub API can't be reached. CI overrides it
+  # with HUGO_PARAMS_VERSION set to the latest tag.
+  version = "v1.2.1"
+  repo = "https://github.com/pantavisor/pvflasher"
+  repoAPI = "https://api.github.com/repos/pantavisor/pvflasher/releases/latest"
+
+[markup.goldmark.renderer]
+  unsafe = true
+
+[markup.highlight]
+  noClasses = false
+  style = "github"
+
+[markup.tableOfContents]
+  startLevel = 2
+  endLevel = 3
+
+# The guides live in ../docs and the screenshots at the repo root, so the
+# site renders them in place instead of keeping copies.
+[module]
+  [[module.mounts]]
+    source = "content"
+    target = "content"
+  [[module.mounts]]
+    source = "../docs"
+    target = "content/docs"
+    files = ["USER_GUIDE.md", "DEVELOPER_GUIDE.md", "TROUBLESHOOTING.md"]
+  [[module.mounts]]
+    source = "layouts"
+    target = "layouts"
+  [[module.mounts]]
+    source = "assets"
+    target = "assets"
+  [[module.mounts]]
+    source = "../assets"
+    target = "assets/brand"
+    files = ["pantacor-logo.svg", "pantacor-logo-dark.svg"]
+  [[module.mounts]]
+    source = "static"
+    target = "static"
+  [[module.mounts]]
+    source = "../docs/images"
+    target = "static/docs/images"
+  [[module.mounts]]
+    source = "../screenshot.png"
+    target = "static/screenshot.png"
+  [[module.mounts]]
+    source = "../Icon.png"
+    target = "static/icon.png"
+  [[module.mounts]]
+    source = "../docs/benchmarks"
+    target = "static/docs/benchmarks"
