@@ -1,0 +1,18 @@
+{{- /*
+  The guides are written for GitHub, where they link to each other as FOO.md and
+  to the rest of the repo as ../path. Point the first at the rendered pages and
+  the second at the file on GitHub.
+*/ -}}
+{{- $dest := .Destination -}}
+{{- $u := urls.Parse $dest -}}
+{{- $href := $dest -}}
+{{- if and (not $u.Scheme) (not (hasPrefix $dest "#")) -}}
+  {{- $frag := cond (ne $u.Fragment "") (printf "#%s" $u.Fragment) "" -}}
+  {{- if hasPrefix $u.Path "../" -}}
+    {{- $href = printf "%s/blob/main/%s%s" site.Params.repo (strings.TrimPrefix "../" $u.Path) $frag -}}
+  {{- else if strings.HasSuffix $u.Path ".md" -}}
+    {{- $href = printf "%s%s" (printf "docs/%s/" (strings.TrimSuffix ".md" $u.Path | lower) | relURL) $frag -}}
+  {{- end -}}
+{{- end -}}
+<a href="{{ $href | safeURL }}"{{ with .Title }} title="{{ . }}"{{ end }}{{ if $u.Scheme }} rel="noopener"{{ end }}>{{ .Text }}</a>
+{{- /* chomp trailing newline */ -}}

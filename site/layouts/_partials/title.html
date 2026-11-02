@@ -1,0 +1,2 @@
+{{- /* The guides in ../docs have no front matter, so derive a title from the file name. */ -}}
+{{- with .Title -}}{{ . }}{{- else -}}{{ with .File }}{{ .ContentBaseName | replaceRE "_" " " | lower | title }}{{ end }}{{- end -}}

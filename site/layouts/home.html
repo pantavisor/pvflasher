@@ -1,0 +1,260 @@
+{{ define "main" }}
+{{- $v := site.Params.version -}}
+{{- $n := strings.TrimPrefix "v" $v -}}
+{{- $dl := printf "%s/releases/download/%s/" site.Params.repo $v -}}
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="eyebrow">Open-source image flasher from Pantacor</p>
+      <h1>Write only the blocks that hold data. Then check every one.</h1>
+      <p class="lede">pvflasher puts OS images on SD cards and USB drives. It follows the image's <code>.bmap</code> to skip empty space, decompresses while it writes, and reads the card back before it tells you it's done.</p>
+      <div class="cta-row">
+        <a class="btn" href="#download" id="hero-download">
+          <span>Download</span>
+          <span class="btn-meta" data-version>{{ $v }}</span>
+        </a>
+        <a class="btn btn-ghost" href="{{ site.Params.repo }}">Source on GitHub</a>
+      </div>
+      <p class="fineprint">Linux, Windows and macOS · Desktop app and CLI · MIT License</p>
+    </div>
+
+    {{- /* A block map of the benchmark image: 384 cells, ~30% empty, like the real
+           715 MB Pantavisor image where 504 MB is mapped. Runs: m = mapped, e = empty. */ -}}
+    {{- $runs := slice
+        (slice "m" 3) (slice "e" 4) (slice "m" 28) (slice "e" 6) (slice "m" 40) (slice "e" 3)
+        (slice "m" 52) (slice "e" 10) (slice "m" 18) (slice "e" 5) (slice "m" 44) (slice "e" 9)
+        (slice "m" 30) (slice "e" 14) (slice "m" 20) (slice "e" 8) (slice "m" 26) (slice "e" 40)
+        (slice "m" 8) (slice "e" 16) -}}
+    <figure class="bmap-card" aria-label="Block map of a Pantavisor Raspberry Pi image being flashed">
+      <figcaption class="bmap-head">
+        <span class="mono">pantavisor-rpi-030.wic.bz2</span>
+        <span class="arrow" aria-hidden="true">→</span>
+        <span class="mono">/dev/sda</span>
+      </figcaption>
+      <div class="bmap" id="bmap" role="img" aria-label="Mapped blocks are written and verified, empty blocks are skipped">
+        {{- range $runs -}}
+          {{- $kind := index . 0 -}}
+          {{- range seq (index . 1) -}}
+            {{- if eq $kind "m" }}<i class="b m v"></i>{{ else }}<i class="b e"></i>{{ end -}}
+          {{- end -}}
+        {{- end -}}
+      </div>
+      <div class="bmap-status">
+        <span id="bmap-phase" class="phase is-done">Verified</span>
+        <span class="mono tnum" id="bmap-count">504 MB written · 211 MB skipped</span>
+      </div>
+      <ul class="legend">
+        <li><i class="b m"></i>Data block, written</li>
+        <li><i class="b m v"></i>Read back and checked</li>
+        <li><i class="b e"></i>Empty, skipped</li>
+      </ul>
+    </figure>
+  </div>
+
+  <div class="wrap">
+    <div class="shot shot-hero">
+      <img src="{{ "screenshot.png" | relURL }}" width="920" height="600" alt="The pvflasher window: choose an image, choose a target drive, then flash">
+    </div>
+  </div>
+</section>
+
+<section class="section" id="speed">
+  <div class="wrap speed-grid">
+    <div class="speed-copy">
+      <p class="eyebrow">Benchmark</p>
+      <h2>Verified in 33.5 seconds.</h2>
+      <p>With verification on, pvflasher writes the image <em>and</em> reads every written block back faster than Raspberry Pi Imager writes it without checking. It is 1.8× faster than <code>dd</code> and on par with <code>bmaptool</code>, which never reads the card back.</p>
+      <p class="note">Pantavisor 030 <code>rpi-scarthgap</code> image: 390 MB compressed, 715 MB raw, 504 MB mapped. microSD card in a USB 3 reader, cold page cache, mean of two runs. <a href="{{ "docs/benchmarks/2026-09-rpi-usb3.csv" | relURL }}">Raw results</a> · <a href="{{ site.Params.repo }}/blob/main/scripts/benchmark-flash.sh">Run it yourself</a></p>
+    </div>
+    {{- $bench := slice
+        (dict "tool" "bmaptool 3.9.0" "s" 27.7 "note" "checks the source, not the card")
+        (dict "tool" "pvflasher" "s" 28.7 "ours" true)
+        (dict "tool" "pvflasher + verify" "s" 33.5 "ours" true "note" "reads back every written block")
+        (dict "tool" "Raspberry Pi Imager" "s" 37.8)
+        (dict "tool" "Raspberry Pi Imager + verify" "s" 45.2)
+        (dict "tool" "dd (bs=4M)" "s" 52.5)
+        (dict "tool" "balenaEtcher engine" "s" 78.6) -}}
+    <figure class="chart" aria-label="Time to flash, lower is better">
+      <figcaption>Seconds to flash, lower is better</figcaption>
+      <div class="chart-plot">
+        {{- range $i, $b := $bench }}
+        <div class="bar-row{{ if .ours }} is-ours{{ end }}" style="--i: {{ $i }}">
+          <span class="bar-label">{{ .tool }}{{ with .note }}<small>{{ . }}</small>{{ end }}</span>
+          <span class="bar-track"><span class="bar" style="--w: {{ div .s 0.8 }}%"></span><span class="bar-val tnum">{{ .s }} s</span></span>
+        </div>
+        {{- end }}
+        <div class="bar-axis" aria-hidden="true"><span></span><span class="ticks tnum"><b>0</b><b>20</b><b>40</b><b>60</b><b>80 s</b></span></div>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section class="section section-alt" id="why">
+  <div class="wrap">
+    <p class="eyebrow">Why pvflasher</p>
+    <h2 class="section-title">Fast because it does less. Safe because it checks.</h2>
+    <div class="features">
+      <article>
+        <h3>Writes only the data</h3>
+        <p>When a <code>.bmap</code> sits next to the image, pvflasher writes the mapped blocks and skips the rest. On the benchmark image that is 30% less to write. <code>pvflasher create</code> makes a block map for any raw image.</p>
+      </article>
+      <article>
+        <h3>Flashes straight from the archive</h3>
+        <p><code>.gz</code>, <code>.bz2</code>, <code>.xz</code>, <code>.zst</code> and <code>.zip</code> are decompressed in parallel with the writes. No unpacking step and no temporary copy of the image.</p>
+      </article>
+      <article>
+        <h3>Reads the card back</h3>
+        <p>Every written block is read from the card and checked against its SHA-256 checksum. A failed write, a worn card or a fake-capacity card shows up before you boot the board.</p>
+      </article>
+      <article>
+        <h3>Keeps away from your system disk</h3>
+        <p>The app only offers removable drives. Internal disks, drives in use by the system and empty card readers never appear, and you confirm before anything is erased.</p>
+      </article>
+      <article>
+        <h3>Pantavisor releases built in</h3>
+        <p>Pick a channel, version and device with the same names as pantavisor.io. The image is downloaded, checksum-validated, cached and flashed in one go.</p>
+      </article>
+      <article>
+        <h3>Keeps itself up to date</h3>
+        <p>The app checks for a release once a day. Updates install only when their minisign signature matches the release key built into pvflasher.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="how">
+  <div class="wrap">
+    <p class="eyebrow">How it works</p>
+    <h2 class="section-title">Three steps, one window.</h2>
+    <ol class="steps">
+      <li>
+        <div class="shot"><img src="{{ "docs/images/pantavisor-release.png" | relURL }}" width="920" height="600" loading="lazy" alt="Choosing a Pantavisor release by channel, version and device"></div>
+        <h3><span class="step-n">1</span>Pick an image</h3>
+        <p>Choose a file, drop one on the window, or pick an official Pantavisor release.</p>
+      </li>
+      <li>
+        <div class="shot"><img src="{{ "docs/images/flashing.png" | relURL }}" width="920" height="600" loading="lazy" alt="A flash in progress with speed and time remaining"></div>
+        <h3><span class="step-n">2</span>Choose the drive and flash</h3>
+        <p>The drive list refreshes as you plug cards in. Confirm, and pvflasher asks for administrator rights only when it starts writing.</p>
+      </li>
+      <li>
+        <div class="shot"><img src="{{ "docs/images/flash-complete.png" | relURL }}" width="920" height="600" loading="lazy" alt="Flash complete and verified"></div>
+        <h3><span class="step-n">3</span>Done and verified</h3>
+        <p>The card is checked, ejected and ready for your board.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="section section-band" id="pantavisor">
+  <div class="wrap band-grid">
+    <div>
+      <p class="eyebrow">Made by Pantacor</p>
+      <h2>From the team that builds Pantavisor.</h2>
+      <p>Pantavisor is the container-based init system for embedded Linux. pvflasher works with images from any distribution, and its desktop app and CLI have a dedicated flow for Pantavisor releases.</p>
+      <div class="cta-row">
+        <a class="btn btn-onband" href="https://pantavisor.io/">Explore Pantavisor</a>
+        <a class="btn btn-ghost-onband" href="https://pantavisor.io/downloads/">Pantavisor images</a>
+      </div>
+    </div>
+    <div class="terminal" aria-label="Command-line example">
+      <div class="terminal-bar"><i></i><i></i><i></i><span>pvflasher CLI</span></div>
+<pre><code><span class="c"># list drives</span>
+<span class="p">$</span> pvflasher list
+Available devices:
+- /dev/sda: GoPro Quik_Key (Removable)  [31914983424 bytes]
+
+<span class="c"># flash, using the .bmap next to the image</span>
+<span class="p">$</span> pvflasher copy ubuntu-24.04.img.xz /dev/sda
+
+<span class="c"># pick and flash an official Pantavisor release</span>
+<span class="p">$</span> pvflasher install</code></pre>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="download">
+  <div class="wrap">
+    <p class="eyebrow">Download</p>
+    <h2 class="section-title">Get pvflasher <span data-version>{{ $v }}</span></h2>
+
+    {{- $oses := slice
+      (dict "id" "linux" "name" "Linux"
+            "note" "The AppImage runs on any distribution and updates itself. Make it executable with chmod +x, then run it."
+            "main" (slice (dict "label" "AppImage" "arch" "x86_64" "file" "PvFlasher-{v}-x86_64.AppImage")
+                          (dict "label" "AppImage" "arch" "ARM64" "file" "PvFlasher-{v}-aarch64.AppImage"))
+            "more" (slice (dict "fmt" "Debian / Ubuntu (.deb)" "x64" "pvflasher_{n}_amd64.deb" "arm" "pvflasher_{n}_arm64.deb")
+                          (dict "fmt" "Fedora / openSUSE (.rpm)" "x64" "pvflasher-{n}-1.x86_64.rpm" "arm" "pvflasher-{n}-1.aarch64.rpm")
+                          (dict "fmt" "Arch (.pkg.tar.zst)" "x64" "pvflasher-{n}-1-x86_64.pkg.tar.zst" "arm" "pvflasher-{n}-1-aarch64.pkg.tar.zst")
+                          (dict "fmt" "Binary (.tar.xz)" "x64" "pvflasher-linux-x86_64.tar.xz" "arm" "pvflasher-linux-aarch64.tar.xz")))
+      (dict "id" "windows" "name" "Windows"
+            "note" "Installs for your user, with no administrator rights needed. pvflasher asks for them when it flashes."
+            "main" (slice (dict "label" "Installer" "arch" "x86_64" "file" "PvFlasher-Setup-{v}-x86_64.exe")
+                          (dict "label" "Installer" "arch" "ARM64" "file" "PvFlasher-Setup-{v}-aarch64.exe"))
+            "more" (slice (dict "fmt" "Portable (.zip)" "x64" "pvflasher-windows-x86_64.zip" "arm" "pvflasher-windows-aarch64.zip")))
+      (dict "id" "macos" "name" "macOS"
+            "note" "Open the disk image and drag PvFlasher into Applications. Signed and notarized by Apple. macOS 11 or later."
+            "main" (slice (dict "label" "Disk image" "arch" "Apple Silicon" "file" "PvFlasher-{v}-arm64.dmg")
+                          (dict "label" "Disk image" "arch" "Intel" "file" "PvFlasher-{v}-x86_64.dmg"))
+            "more" (slice (dict "fmt" "App bundle (.zip)" "x64" "pvflasher-darwin-amd64.zip" "arm" "pvflasher-darwin-arm64.zip"))) -}}
+
+    <div class="dl" data-dl-base="{{ site.Params.repo }}/releases/download/">
+      <div class="tabs" role="tablist" aria-label="Operating system">
+        {{- range $i, $os := $oses }}
+        <button type="button" role="tab" id="tab-{{ .id }}" aria-controls="panel-{{ .id }}" aria-selected="{{ if eq $i 0 }}true{{ else }}false{{ end }}" data-os="{{ .id }}">{{ .name }}</button>
+        {{- end }}
+      </div>
+      {{- range $i, $os := $oses }}
+      <div class="panel" role="tabpanel" id="panel-{{ .id }}" aria-labelledby="tab-{{ .id }}" data-os="{{ .id }}">
+        <h3 class="panel-title">{{ .name }}</h3>
+        <div class="dl-main">
+          {{- range .main }}
+          {{- $file := replace (replace .file "{v}" $v) "{n}" $n }}
+          <a class="dl-btn" href="{{ $dl }}{{ $file }}" data-file="{{ .file }}">
+            <span class="dl-kind">{{ .label }} · {{ .arch }}</span>
+            <span class="dl-file mono">{{ $file }}</span>
+          </a>
+          {{- end }}
+        </div>
+        <p class="dl-note">{{ .note }}</p>
+        <div class="table-scroll">
+          <table class="dl-more">
+            <thead><tr><th scope="col">Other formats</th><th scope="col">x86_64</th><th scope="col">ARM64</th></tr></thead>
+            <tbody>
+              {{- range .more }}
+              {{- $x := replace (replace .x64 "{v}" $v) "{n}" $n }}
+              {{- $a := replace (replace .arm "{v}" $v) "{n}" $n }}
+              <tr>
+                <th scope="row">{{ .fmt }}</th>
+                <td><a href="{{ $dl }}{{ $x }}" data-file="{{ .x64 }}">Download</a></td>
+                <td><a href="{{ $dl }}{{ $a }}" data-file="{{ .arm }}">Download</a></td>
+              </tr>
+              {{- end }}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {{- end }}
+    </div>
+
+    <div class="install">
+      <div class="install-item">
+        <h3>Install script for Linux and macOS</h3>
+        <div class="copy-block">
+          <pre><code id="cmd-sh">curl -fsSL https://raw.githubusercontent.com/pantavisor/pvflasher/main/scripts/install.sh | bash</code></pre>
+          <button type="button" class="copy" data-copy="cmd-sh">Copy</button>
+        </div>
+      </div>
+      <div class="install-item">
+        <h3>Install script for Windows (PowerShell)</h3>
+        <div class="copy-block">
+          <pre><code id="cmd-ps">powershell -c "irm https://raw.githubusercontent.com/pantavisor/pvflasher/main/scripts/install.ps1 | iex"</code></pre>
+          <button type="button" class="copy" data-copy="cmd-ps">Copy</button>
+        </div>
+      </div>
+    </div>
+    <p class="dl-foot">Every release, checksums and signatures are on the <a href="{{ site.Params.repo }}/releases/latest">GitHub releases page</a>. Building from source? See the <a href="{{ "docs/developer_guide/" | relURL }}">developer guide</a>.</p>
+  </div>
+</section>
+{{ end }}

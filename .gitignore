@@ -60,3 +60,9 @@ packaging/**/*.wixpdb
 # OS
 Thumbs.db
 .Trashes
+
+# Website (Hugo)
+site/public/
+site/resources/
+site/.hugo_build.lock
+.playwright-mcp/

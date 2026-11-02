@@ -1,0 +1,12 @@
+{{- /* Guide images are relative to docs/ on GitHub; ../x is the repo root, mounted at the site root. */ -}}
+{{- $dest := .Destination -}}
+{{- $src := $dest -}}
+{{- if not (urls.Parse $dest).Scheme -}}
+  {{- if hasPrefix $dest "../" -}}
+    {{- $src = strings.TrimPrefix "../" $dest | relURL -}}
+  {{- else -}}
+    {{- $src = printf "docs/%s" $dest | relURL -}}
+  {{- end -}}
+{{- end -}}
+<img src="{{ $src }}" alt="{{ .Text }}" loading="lazy"{{ with .Title }} title="{{ . }}"{{ end }}>
+{{- /* chomp trailing newline */ -}}
