@@ -1,16 +1,16 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header">
   <div class="wrap header-row">
-    <a class="brand" href="{{ "/" | relURL }}" aria-label="pvflasher home">
+    <a class="brand" href="{{ site.Home.RelPermalink }}" aria-label="pvflasher home">
       <img src="{{ "icon.png" | relURL }}" alt="" width="28" height="28">
       <span>pvflasher</span>
     </a>
     <nav class="nav" aria-label="Main">
-      <a href="{{ "/" | relURL }}#why">Why</a>
-      <a href="{{ "/" | relURL }}#speed">Speed</a>
+      <a href="{{ site.Home.RelPermalink }}#why">Why</a>
+      <a href="{{ site.Home.RelPermalink }}#speed">Speed</a>
       <a href="{{ "docs/user_guide/" | relURL }}">Guide</a>
       <a href="{{ site.Params.repo }}" class="nav-gh">GitHub</a>
-      <a href="{{ "/" | relURL }}#download" class="btn btn-small">Download</a>
+      <a href="{{ site.Home.RelPermalink }}#download" class="btn btn-small">Download</a>
     </nav>
   </div>
 </header>
