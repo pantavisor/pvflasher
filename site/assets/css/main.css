@@ -20,9 +20,9 @@
   --code-fg: #e6e4f0;
   --shadow: 0 1px 2px rgb(23 21 31 / .06), 0 12px 32px -12px rgb(56 36 140 / .18);
 
-  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
-  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-display: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   --u: 16px;
   --radius: 10px;
@@ -67,7 +67,7 @@ a:hover { text-decoration-thickness: 2px; }
 code, .mono { font-family: var(--font-mono); font-size: .9em; }
 .tnum { font-variant-numeric: tabular-nums; }
 h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.08; }
-h2 { font-size: clamp(1.9rem, 1.3rem + 2.2vw, 2.9rem); font-weight: 800; letter-spacing: -.025em; }
+h2 { font-size: clamp(1.9rem, 1.3rem + 2.2vw, 2.9rem); font-weight: 800; letter-spacing: -.022em; }
 h3 { font-size: 1.2rem; font-weight: 700; letter-spacing: -.01em; }
 p { margin: 0; }
 
@@ -134,8 +134,8 @@ p { margin: 0; }
 .hero h1 {
   font-size: clamp(2.5rem, 1.4rem + 4.4vw, 4.6rem);
   font-weight: 800;
-  letter-spacing: -.035em;
-  line-height: .98;
+  letter-spacing: -.028em;
+  line-height: 1.02;
 }
 .lede { font-size: clamp(1.08rem, 1rem + .35vw, 1.25rem); color: var(--muted); max-width: 34em; }
 .lede code { color: var(--fg); background: var(--sunk); padding: 1px 6px; border-radius: 4px; }
