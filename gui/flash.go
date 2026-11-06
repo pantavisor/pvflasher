@@ -5,10 +5,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -437,6 +439,11 @@ func (a *App) runElevatedFlashDarwin(args []string) {
 		return
 	}
 
+	// osascript reports its own failures (cancelled password prompt, the
+	// child killed by a signal) on stderr; the child's output goes to logPath.
+	var osaStderr bytes.Buffer
+	cmd.Stderr = &osaStderr
+
 	a.cmd = cmd
 	if err := cmd.Start(); err != nil {
 		a.handleFlashError(err)
@@ -461,11 +468,7 @@ func (a *App) runElevatedFlashDarwin(args []string) {
 				return
 			}
 
-			if msg := a.lastNonJSONLogLine(); msg != "" {
-				a.handleFlashError(fmt.Errorf("%s", msg))
-			} else {
-				a.handleFlashError(fmt.Errorf("operation failed: %v", err))
-			}
+			a.handleFlashError(a.darwinFlashError(err, osaStderr.String()))
 			return
 		case <-ticker.C:
 			processedLines = a.processElevatedLogFile(logPath, processedLines)
@@ -556,10 +559,32 @@ func (a *App) findFlashResultInLogs() *flash.FlashResult {
 	return nil
 }
 
+// darwinFlashError picks the most useful message for a failed elevated
+// flash on macOS: the child's "Error:" line, then its last other output line,
+// then what osascript itself reported.
+func (a *App) darwinFlashError(waitErr error, osaStderr string) error {
+	if msg := a.lastNonJSONLogLine(); msg != "" {
+		return errors.New(msg)
+	}
+	osaStderr = strings.TrimSpace(osaStderr)
+	if strings.Contains(osaStderr, "(-128)") || strings.Contains(osaStderr, "User canceled") {
+		return errors.New("authentication cancelled")
+	}
+	if osaStderr != "" {
+		a.lastLogs = append(a.lastLogs, "STDERR: "+osaStderr)
+		return errors.New(osaStderr)
+	}
+	return fmt.Errorf("operation failed: %v", waitErr)
+}
+
+// lastNonJSONLogLine returns the child's error message from its output. A
+// line from the CLI's "Error: ..." report wins; otherwise the last line that
+// is neither JSON progress nor a Fyne log message.
 func (a *App) lastNonJSONLogLine() string {
+	fallback := ""
 	for i := len(a.lastLogs) - 1; i >= 0; i-- {
 		line := strings.TrimSpace(a.lastLogs[i])
-		if line == "" {
+		if line == "" || isFyneLogLine(line) {
 			continue
 		}
 
@@ -567,9 +592,25 @@ func (a *App) lastNonJSONLogLine() string {
 		if json.Unmarshal([]byte(line), &js) == nil {
 			continue
 		}
-		return line
+		if msg, ok := strings.CutPrefix(line, "Error: "); ok {
+			return msg
+		}
+		if fallback == "" {
+			fallback = line
+		}
 	}
-	return ""
+	return fallback
+}
+
+// fyneLogLine matches the lines fyne.LogError writes through the log
+// package ("Fyne error: ...", "  Cause: ...", "  At: file:line"), optionally
+// prefixed with the log timestamp. Every pvflasher process links Fyne, whose
+// lang package logs at start-up when it cannot read the user's locales, as
+// happens in the root child on macOS.
+var fyneLogLine = regexp.MustCompile(`^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\s+)?(Fyne error:|Cause:|At:)`)
+
+func isFyneLogLine(line string) bool {
+	return fyneLogLine.MatchString(line)
 }
 
 func shellQuoteForShell(value string) string {
