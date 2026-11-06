@@ -1,8 +1,28 @@
 
+<a name="v1.2.2"></a>
+## [v1.2.2](https://github.com/pantavisor/pvflasher/compare/v1.2.1...v1.2.2)
+
+> 2026-11-06
+
+### Feature
+
+* add a Hugo website published to GitHub Pages
+
+### Fix
+
+* show the real flash error on macOS instead of Fyne log noise
+* keep the /pvflasher/ path in the website's header links
+* build with go 1.26.10 (GO-2026-6809, CVE-2026-111943)
+
+
 <a name="v1.2.1"></a>
 ## [v1.2.1](https://github.com/pantavisor/pvflasher/compare/v1.2.0...v1.2.1)
 
 > 2026-09-25
+
+### Chore
+
+* update changelog for v1.2.1
 
 ### Docs
 
