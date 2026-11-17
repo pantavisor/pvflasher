@@ -36,7 +36,11 @@ func Create(imagePath string, opts CreateOptions) (*Bmap, error) {
 		opts.BlockSize = 4096 // Default 4KB
 	}
 
-	// Get mapped ranges (sparse detection)
+	// Get mapped ranges (sparse detection). Only holes are left out of the
+	// bmap, as bmaptool does: blocks that hold zeros are still data. A flash
+	// skips every unmapped block, so leaving out zero blocks would keep
+	// whatever the target held there before (e.g. inside a kernel image
+	// written over an eMMC that is not blank).
 	ranges, err := image.GetMappedRanges(f)
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect mapped ranges: %w", err)
@@ -84,16 +88,6 @@ func Create(imagePath string, opts CreateOptions) (*Bmap, error) {
 				break
 			}
 
-			// Check if block is all zeros (to skip even if mapped by FS)
-			if isAllZero(buf[:n]) {
-				if currentRangeStart != -1 {
-					bm.BlockMap = append(bm.BlockMap, createRangeFromHasher(currentRangeStart, blk-1, hasher))
-					currentRangeStart = -1
-					hasher.Reset()
-				}
-				continue
-			}
-
 			mappedBlocksCount++
 			if currentRangeStart == -1 {
 				currentRangeStart = blk
@@ -108,15 +102,6 @@ func Create(imagePath string, opts CreateOptions) (*Bmap, error) {
 
 	bm.MappedBlocksCount = mappedBlocksCount
 	return bm, nil
-}
-
-func isAllZero(b []byte) bool {
-	for _, v := range b {
-		if v != 0 {
-			return false
-		}
-	}
-	return true
 }
 
 func createRangeFromHasher(start, end int64, h io.Writer) Range {
@@ -142,7 +127,7 @@ func (b *Bmap) Save(path string) error {
 
 	// Write header
 	f.WriteString("<?xml version=\"1.0\" ?>\n")
-	
+
 	// Comment with human readable info like bmaptool
 	f.WriteString(fmt.Sprintf("<!-- Bmap for image %d bytes, mapped %d blocks -->\n", b.ImageSize, b.MappedBlocksCount))
 
@@ -151,6 +136,6 @@ func (b *Bmap) Save(path string) error {
 	if err := enc.Encode(b); err != nil {
 		return err
 	}
-    f.WriteString("\n")
+	f.WriteString("\n")
 	return nil
 }

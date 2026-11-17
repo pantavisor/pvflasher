@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"pvflasher/internal/image"
 )
 
 func TestCreate_Simple(t *testing.T) {
@@ -53,11 +55,11 @@ func TestCreate_Simple(t *testing.T) {
 }
 
 func TestCreate_ZeroFile(t *testing.T) {
-	// Create a file with all zeros (sparse)
+	// A file written with zeros (not sparse): zeros are data, so every block
+	// is mapped and a flash writes them over whatever the target held.
 	tmpDir := t.TempDir()
 	imagePath := filepath.Join(tmpDir, "zero.img")
 
-	// Write 1MB of zeros
 	testData := make([]byte, 1024*1024)
 	os.WriteFile(imagePath, testData, 0644)
 
@@ -75,10 +77,86 @@ func TestCreate_ZeroFile(t *testing.T) {
 		t.Errorf("BlockSize = %d, want 4096 (default)", b.BlockSize)
 	}
 
-	// All-zero file should have no mapped blocks
+	if b.MappedBlocksCount != 256 {
+		t.Errorf("MappedBlocksCount = %d, want 256", b.MappedBlocksCount)
+	}
+}
+
+func TestCreate_SparseFile(t *testing.T) {
+	// A file that is one big hole has nothing to write.
+	tmpDir := t.TempDir()
+	imagePath := filepath.Join(tmpDir, "sparse.img")
+
+	f, err := os.Create(imagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(1024 * 1024); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	b, err := Create(imagePath, CreateOptions{})
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if !holesSupported(t, imagePath) {
+		t.Skip("filesystem does not report holes")
+	}
 	if b.MappedBlocksCount != 0 {
 		t.Errorf("MappedBlocksCount = %d, want 0", b.MappedBlocksCount)
 	}
+}
+
+func TestCreate_DataHoleData(t *testing.T) {
+	// data, hole, data: only the hole is left out.
+	tmpDir := t.TempDir()
+	imagePath := filepath.Join(tmpDir, "holey.img")
+
+	const blk = 4096
+	const holeBlocks = 64 // larger than any filesystem's allocation unit
+	f, err := os.Create(imagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block := make([]byte, blk)
+	for i := range block {
+		block[i] = byte(i%255 + 1)
+	}
+	f.WriteAt(block, 0)
+	f.WriteAt(block, (1+holeBlocks)*blk)
+	f.Close()
+
+	b, err := Create(imagePath, CreateOptions{BlockSize: blk})
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	if !holesSupported(t, imagePath) {
+		t.Skip("filesystem does not report holes")
+	}
+	if b.MappedBlocksCount != 2 {
+		t.Errorf("MappedBlocksCount = %d, want 2", b.MappedBlocksCount)
+	}
+	if len(b.BlockMap) != 2 || b.BlockMap[0].Text != "0" || b.BlockMap[1].Text != "65" {
+		t.Errorf("BlockMap = %+v, want ranges 0 and 65", b.BlockMap)
+	}
+}
+
+// holesSupported reports whether the filesystem holding path reports holes
+// (tmpfs, ext4, xfs and btrfs do).
+func holesSupported(t *testing.T, path string) bool {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	ranges, err := image.GetMappedRanges(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fi, _ := f.Stat()
+	return !(len(ranges) == 1 && ranges[0].Start == 0 && ranges[0].End == fi.Size())
 }
 
 func TestCreate_NonExistentFile(t *testing.T) {
@@ -116,57 +194,12 @@ func TestCreate_MixedData(t *testing.T) {
 		t.Fatalf("Create failed: %v", err)
 	}
 
-	// Should have 2 mapped blocks (first and third)
-	if b.MappedBlocksCount != 2 {
-		t.Errorf("MappedBlocksCount = %d, want 2", b.MappedBlocksCount)
+	// The zero block in the middle is data too: one range of 3 blocks.
+	if b.MappedBlocksCount != 3 {
+		t.Errorf("MappedBlocksCount = %d, want 3", b.MappedBlocksCount)
 	}
-}
-
-func TestIsAllZero(t *testing.T) {
-	tests := []struct {
-		name     string
-		data     []byte
-		expected bool
-	}{
-		{
-			name:     "All zeros",
-			data:     make([]byte, 100),
-			expected: true,
-		},
-		{
-			name:     "First byte non-zero",
-			data:     append([]byte{1}, make([]byte, 99)...),
-			expected: false,
-		},
-		{
-			name:     "Last byte non-zero",
-			data:     append(make([]byte, 99), 1),
-			expected: false,
-		},
-		{
-			name:     "Middle byte non-zero",
-			data:     append(append(make([]byte, 50), byte(1)), make([]byte, 49)...),
-			expected: false,
-		},
-		{
-			name:     "Empty slice",
-			data:     []byte{},
-			expected: true,
-		},
-		{
-			name:     "Single non-zero",
-			data:     []byte{1},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isAllZero(tt.data)
-			if result != tt.expected {
-				t.Errorf("isAllZero() = %v, want %v", result, tt.expected)
-			}
-		})
+	if len(b.BlockMap) != 1 || b.BlockMap[0].Text != "0-2" {
+		t.Errorf("BlockMap = %+v, want one range 0-2", b.BlockMap)
 	}
 }
 
